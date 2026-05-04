@@ -4,6 +4,185 @@ export interface MealSlot {
   prep_notes: string;
 }
 
+
+export interface MealAlternative {
+  reason: string;
+  swap: string;
+  note: string;
+}
+
+export interface PortionProfile {
+  tdee: number;
+  dailyCalories: number;
+  proteinGrams: number;
+  carbGrams: number;
+  fatGrams: number;
+}
+
+export interface MealPortion {
+  label: string;
+  details: string[];
+}
+
+export interface MealPersonalisation {
+  alternatives: MealAlternative[];
+  portion: MealPortion | null;
+}
+
+export type DietaryFlag = 'dairy-free' | 'gluten-free' | 'nut-free' | 'egg-free' | 'pescatarian' | 'vegetarian' | 'vegan';
+
+export interface UserNutritionProfile {
+  age?: number | null;
+  sex?: 'male' | 'female' | 'other' | '' | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'athlete' | '' | null;
+  dietaryFlags?: DietaryFlag[];
+  foodDislikes?: string[];
+}
+
+const DIETARY_PATTERNS: Record<DietaryFlag, { label: string; terms: string[]; swap: string }> = {
+  'dairy-free': {
+    label: 'Dairy-free',
+    terms: ['yogurt', 'kefir', 'goat cheese', 'feta', 'cheese', 'tzatziki', 'ghee', 'chèvre', 'milk'],
+    swap: 'Use coconut yogurt, water kefir, olive oil, tahini, avocado, or extra fermented vegetables instead of dairy.',
+  },
+  'gluten-free': {
+    label: 'Gluten-free',
+    terms: ['farro', 'pita', 'flatbread', 'wheat', 'barley', 'rye'],
+    swap: 'Use quinoa, buckwheat, brown rice, gluten-free oats, cucumber scoops, or roasted sweet potato.',
+  },
+  'nut-free': {
+    label: 'Nut-free',
+    terms: ['almond', 'walnut', 'nuts', 'nut butter', 'brazil nuts'],
+    swap: 'Use pumpkin seeds, hemp seeds, chia, tahini, avocado, olives, or extra berries for fats and polyphenols.',
+  },
+  'egg-free': {
+    label: 'Egg-free',
+    terms: ['egg', 'eggs', 'omelette', 'scramble', 'shakshuka'],
+    swap: 'Use sardines, smoked salmon, tempeh, chickpea scramble, or avocado with sauerkraut.',
+  },
+  pescatarian: {
+    label: 'Pescatarian',
+    terms: ['chicken', 'lamb', 'beef', 'bone broth', 'collagen'],
+    swap: 'Use salmon, sardines, mackerel, tuna, eggs if tolerated, legumes, miso broth, or marine collagen if suitable.',
+  },
+  vegetarian: {
+    label: 'Vegetarian',
+    terms: ['chicken', 'lamb', 'beef', 'salmon', 'sardines', 'mackerel', 'tuna', 'anchovies', 'octopus', 'squid', 'prawns', 'cod', 'swordfish', 'sea bream', 'bone broth', 'collagen'],
+    swap: 'Use eggs/dairy if tolerated, lentils, chickpeas, white beans, tempeh, tofu, quinoa, tahini, miso broth, and fermented vegetables.',
+  },
+  vegan: {
+    label: 'Vegan',
+    terms: ['chicken', 'lamb', 'beef', 'salmon', 'sardines', 'mackerel', 'tuna', 'anchovies', 'octopus', 'squid', 'prawns', 'cod', 'swordfish', 'sea bream', 'bone broth', 'collagen', 'egg', 'eggs', 'yogurt', 'kefir', 'cheese', 'feta', 'goat cheese', 'honey', 'ghee', 'milk'],
+    swap: 'Use lentils, chickpeas, white beans, tempeh, tofu, quinoa, tahini, avocado, coconut yogurt, water kefir, miso broth, and fermented vegetables.',
+  },
+};
+
+const ACTIVITY_MULTIPLIER: Record<NonNullable<UserNutritionProfile['activityLevel']>, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  athlete: 1.9,
+  '': 1.375,
+};
+
+const MEAL_SPLIT: Record<string, number> = {
+  breakfast: 0.24,
+  snack1: 0.11,
+  lunch: 0.27,
+  snack2: 0.10,
+  dinner: 0.28,
+};
+
+export function calculatePortionProfile(profile: UserNutritionProfile): PortionProfile | null {
+  const age = Number(profile.age);
+  const weight = Number(profile.weightKg);
+  const height = Number(profile.heightCm);
+  if (!age || !weight || !height || age < 10 || weight < 30 || height < 120) return null;
+
+  const sexOffset = profile.sex === 'female' ? -161 : profile.sex === 'male' ? 5 : -78;
+  const bmr = (10 * weight) + (6.25 * height) - (5 * age) + sexOffset;
+  const tdee = Math.round(bmr * (ACTIVITY_MULTIPLIER[profile.activityLevel || 'light'] || 1.375));
+  // Gut-reset target: modest deficit from maintenance, high protein, Mediterranean moderate-carb.
+  const dailyCalories = Math.round(Math.max(1400, Math.min(3200, tdee * 0.9)));
+  const proteinGrams = Math.round(Math.min(weight * 1.8, Math.max(weight * 1.4, (dailyCalories * 0.28) / 4)));
+  const carbGrams = Math.round((dailyCalories * 0.32) / 4);
+  const fatGrams = Math.round((dailyCalories * 0.40) / 9);
+
+  return { tdee, dailyCalories, proteinGrams, carbGrams, fatGrams };
+}
+
+export function getMealPersonalisation(meal: MealSlot, slot: string, profile: UserNutritionProfile): MealPersonalisation {
+  const text = `${meal.name} ${meal.description} ${meal.prep_notes}`.toLowerCase();
+  const flags = profile.dietaryFlags || [];
+  const dislikes = (profile.foodDislikes || []).map(d => d.trim()).filter(Boolean);
+  const alternatives: MealAlternative[] = [];
+
+  for (const flag of flags) {
+    const spec = DIETARY_PATTERNS[flag];
+    if (!spec) continue;
+    const hit = spec.terms.find(term => text.includes(term));
+    if (hit) {
+      alternatives.push({ reason: spec.label, swap: spec.swap, note: `Flagged because this meal mentions “${hit}”.` });
+    }
+  }
+
+  for (const dislike of dislikes) {
+    if (text.includes(dislike.toLowerCase())) {
+      alternatives.push({
+        reason: `Disliked food: ${dislike}`,
+        swap: getDislikeSwap(dislike),
+        note: 'Protocol-compliant swap: keep the meal structure, replace only the problem ingredient.',
+      });
+    }
+  }
+
+  const uniqueAlternatives = alternatives.filter((alt, index, arr) =>
+    arr.findIndex(other => other.reason === alt.reason && other.swap === alt.swap) === index
+  );
+
+  return {
+    alternatives: uniqueAlternatives,
+    portion: getMealPortion(slot, calculatePortionProfile(profile)),
+  };
+}
+
+function getDislikeSwap(dislike: string): string {
+  const d = dislike.toLowerCase();
+  if (['salmon', 'mackerel', 'sardines', 'tuna', 'fish'].some(x => d.includes(x))) return 'Swap oily fish for chicken, eggs, tempeh, or legumes; add EVOO/flax/chia for omega-3 support.';
+  if (['yogurt', 'kefir', 'dairy', 'cheese'].some(x => d.includes(x))) return 'Swap dairy ferments for coconut yogurt, water kefir, raw sauerkraut, kimchi, or miso broth.';
+  if (['egg', 'eggs'].some(x => d.includes(x))) return 'Swap eggs for sardines, smoked salmon, chickpea scramble, tempeh, or avocado with fermented vegetables.';
+  if (['walnut', 'almond', 'nuts', 'nut'].some(x => d.includes(x))) return 'Swap nuts for pumpkin seeds, hemp seeds, chia, tahini, avocado, olives, or extra berries.';
+  if (['chicken', 'lamb', 'meat'].some(x => d.includes(x))) return 'Swap meat for salmon/sardines, eggs, lentils, chickpeas, white beans, tempeh, or quinoa.';
+  return 'Use a same-category gut-reset food: fermented vegetable, prebiotic fibre, clean protein, EVOO, herbs, or low-sugar fruit.';
+}
+
+function getMealPortion(slot: string, profile: PortionProfile | null): MealPortion | null {
+  if (!profile) return null;
+  const split = MEAL_SPLIT[slot] || 0.2;
+  const calories = Math.round(profile.dailyCalories * split);
+  const protein = Math.round(profile.proteinGrams * split);
+  const carbs = Math.round(profile.carbGrams * split);
+  const fat = Math.round(profile.fatGrams * split);
+  const proteinPortion = Math.max(90, Math.round((protein / 0.24) / 10) * 10);
+  const starchPortion = Math.max(60, Math.round((carbs / 0.22) / 10) * 10);
+  const fatTbsp = Math.max(1, Math.round(fat / 14));
+
+  if (slot === 'snack1' || slot === 'snack2') {
+    return {
+      label: `~${calories} kcal target`,
+      details: [`Protein ${protein}g`, `Carbs ${carbs}g`, `Fat ${fat}g`, 'Use one fruit/veg + one protein/fat anchor'],
+    };
+  }
+
+  return {
+    label: `~${calories} kcal target`,
+    details: [`Protein ${protein}g ≈ ${proteinPortion}g cooked fish/chicken or 1 cup legumes`, `Carbs ${carbs}g ≈ ${starchPortion}g cooked grains/root veg`, `Fat ${fat}g ≈ ${fatTbsp} tbsp EVOO/tahini or avocado`],
+  };
+}
+
 export interface DayMealPlan {
   week: 1 | 2;
   day_number: number;

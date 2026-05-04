@@ -4,9 +4,28 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store/appStore';
+import type { ActivityLevel, DietaryFlag, Sex } from '@/lib/types';
 import { supplements } from '@/data/supplements';
 import { MetricSelector } from '@/components/ui/MetricSelector';
 import { setLocalProfile, setLocalBaseline } from '@/lib/storage';
+
+const DIETARY_FLAGS: { id: DietaryFlag; label: string; emoji: string }[] = [
+  { id: 'dairy-free', label: 'Dairy-free', emoji: '🥥' },
+  { id: 'gluten-free', label: 'Gluten-free', emoji: '🌾' },
+  { id: 'nut-free', label: 'Nut-free', emoji: '🌰' },
+  { id: 'egg-free', label: 'Egg-free', emoji: '🥚' },
+  { id: 'pescatarian', label: 'Pescatarian', emoji: '🐟' },
+  { id: 'vegetarian', label: 'Vegetarian', emoji: '🥦' },
+  { id: 'vegan', label: 'Vegan', emoji: '🌱' },
+];
+
+const ACTIVITY_OPTIONS: { id: ActivityLevel; label: string }[] = [
+  { id: 'sedentary', label: 'Mostly seated' },
+  { id: 'light', label: 'Light movement 1–3×/week' },
+  { id: 'moderate', label: 'Training 3–5×/week' },
+  { id: 'active', label: 'Hard training most days' },
+  { id: 'athlete', label: 'Athlete / physical job' },
+];
 
 const GOALS = [
   { id: 'bloating', label: 'Reduce bloating & digestive discomfort', emoji: '🫁' },
@@ -25,7 +44,7 @@ const SCREEN_VARIANTS = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { setStartDate, setGoals, setConfiguredSupplements, completeOnboarding } = useAppStore();
+  const { setStartDate, setGoals, setConfiguredSupplements, setPersonalDetails, setFoodPreferences, completeOnboarding } = useAppStore();
   
   const [screen, setScreen] = useState(0);
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
@@ -34,8 +53,11 @@ export default function OnboardingPage() {
     supplements.filter(s => s.priority === 'Essential').map(s => s.key)
   );
   const [baseline, setBaselineLocal] = useState({ energy: 3, bloating: 3, mood: 3, bowel_pattern: 'variable' });
+  const [personal, setPersonalLocal] = useState({ age: '', sex: '' as Sex, weightKg: '', heightCm: '', activityLevel: 'light' as ActivityLevel });
+  const [dietaryFlags, setDietaryFlagsLocal] = useState<DietaryFlag[]>([]);
+  const [foodDislikesInput, setFoodDislikesInput] = useState('');
   
-  const TOTAL_SCREENS = 7;
+  const TOTAL_SCREENS = 9;
   
   const next = () => {
     if (screen < TOTAL_SCREENS - 1) setScreen(s => s + 1);
@@ -56,17 +78,45 @@ export default function OnboardingPage() {
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
   };
+
+  const toggleDietaryFlag = (id: DietaryFlag) => {
+    setDietaryFlagsLocal(prev =>
+      prev.includes(id) ? prev.filter(flag => flag !== id) : [...prev, id]
+    );
+  };
+
+  const foodDislikes = foodDislikesInput
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  const profilePersonal = {
+    age: personal.age ? Number(personal.age) : null,
+    sex: personal.sex,
+    weightKg: personal.weightKg ? Number(personal.weightKg) : null,
+    heightCm: personal.heightCm ? Number(personal.heightCm) : null,
+    activityLevel: personal.activityLevel,
+  };
   
   const finish = async () => {
     setStartDate(startDate);
     setGoals(selectedGoals);
     setConfiguredSupplements(selectedSupps);
+    setPersonalDetails(profilePersonal);
+    setFoodPreferences({ dietaryFlags, foodDislikes });
     
     const profile = {
       user: 'local-user',
       start_date: startDate,
       goals: selectedGoals,
       configured_supplements: selectedSupps,
+      age: profilePersonal.age,
+      sex: profilePersonal.sex,
+      weight_kg: profilePersonal.weightKg,
+      height_cm: profilePersonal.heightCm,
+      activity_level: profilePersonal.activityLevel,
+      dietary_flags: dietaryFlags,
+      food_dislikes: foodDislikes,
       notifications_enabled: false,
       onboarding_complete: true,
     };
@@ -198,7 +248,83 @@ export default function OnboardingPage() {
       </button>
     </div>,
     
-    // Screen 4: Supplements
+
+    // Screen 4: Personal profile
+    <div key="profile" className="flex flex-col h-full px-4 py-6">
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold mb-1" style={{ color: '#1C1C1A' }}>Personalise portions</h2>
+        <p className="text-sm" style={{ color: '#6B7280' }}>Optional, but this lets us calculate Mifflin-St Jeor TDEE and suggest better meal portions.</p>
+      </div>
+      <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="bg-white rounded-2xl p-3 shadow-card">
+            <span className="block text-xs font-semibold mb-2" style={{ color: '#44403C' }}>Age</span>
+            <input inputMode="numeric" value={personal.age} onChange={(e) => setPersonalLocal(p => ({ ...p, age: e.target.value.replace(/\D/g, '') }))} placeholder="38" className="w-full text-base outline-none" style={{ color: '#1C1C1A' }} />
+          </label>
+          <label className="bg-white rounded-2xl p-3 shadow-card">
+            <span className="block text-xs font-semibold mb-2" style={{ color: '#44403C' }}>Sex</span>
+            <select value={personal.sex} onChange={(e) => setPersonalLocal(p => ({ ...p, sex: e.target.value as Sex }))} className="w-full text-base outline-none bg-transparent" style={{ color: '#1C1C1A' }}>
+              <option value="">Select</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="bg-white rounded-2xl p-3 shadow-card">
+            <span className="block text-xs font-semibold mb-2" style={{ color: '#44403C' }}>Weight (kg)</span>
+            <input inputMode="decimal" value={personal.weightKg} onChange={(e) => setPersonalLocal(p => ({ ...p, weightKg: e.target.value.replace(/[^\d.]/g, '') }))} placeholder="82" className="w-full text-base outline-none" style={{ color: '#1C1C1A' }} />
+          </label>
+          <label className="bg-white rounded-2xl p-3 shadow-card">
+            <span className="block text-xs font-semibold mb-2" style={{ color: '#44403C' }}>Height (cm)</span>
+            <input inputMode="decimal" value={personal.heightCm} onChange={(e) => setPersonalLocal(p => ({ ...p, heightCm: e.target.value.replace(/[^\d.]/g, '') }))} placeholder="178" className="w-full text-base outline-none" style={{ color: '#1C1C1A' }} />
+          </label>
+        </div>
+        <div className="bg-white rounded-2xl p-3 shadow-card">
+          <p className="text-xs font-semibold mb-2" style={{ color: '#44403C' }}>Activity level</p>
+          <div className="flex flex-col gap-2">
+            {ACTIVITY_OPTIONS.map(option => (
+              <button key={option.id} onClick={() => setPersonalLocal(p => ({ ...p, activityLevel: option.id }))} className="p-3 rounded-xl border-2 text-left text-sm font-medium cursor-pointer" style={{ borderColor: personal.activityLevel === option.id ? '#4A7C59' : '#E8E6E3', backgroundColor: personal.activityLevel === option.id ? '#E0EEE6' : 'white', color: '#1C1C1A' }}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <button onClick={next} className="w-full py-4 rounded-2xl font-semibold text-lg mt-4 cursor-pointer text-white" style={{ backgroundColor: '#4A7C59' }}>
+        Continue →
+      </button>
+    </div>,
+
+    // Screen 5: Food preferences
+    <div key="food-preferences" className="flex flex-col h-full px-4 py-6">
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold mb-1" style={{ color: '#1C1C1A' }}>Any foods to avoid?</h2>
+        <p className="text-sm" style={{ color: '#6B7280' }}>We'll flag meals and show protocol-compliant swaps inline.</p>
+      </div>
+      <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-2 gap-2">
+          {DIETARY_FLAGS.map(flag => (
+            <button key={flag.id} onClick={() => toggleDietaryFlag(flag.id)} className="flex items-center gap-2 p-3 bg-white rounded-xl border-2 text-left cursor-pointer" style={{ borderColor: dietaryFlags.includes(flag.id) ? '#4A7C59' : '#E8E6E3', backgroundColor: dietaryFlags.includes(flag.id) ? '#E0EEE6' : 'white' }}>
+              <span>{flag.emoji}</span>
+              <span className="text-xs font-semibold" style={{ color: '#1C1C1A' }}>{flag.label}</span>
+              {dietaryFlags.includes(flag.id) && <span className="ml-auto text-sm">✓</span>}
+            </button>
+          ))}
+        </div>
+        <label className="bg-white rounded-2xl p-4 shadow-card">
+          <span className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1A' }}>Specific dislikes or intolerances</span>
+          <textarea value={foodDislikesInput} onChange={(e) => setFoodDislikesInput(e.target.value)} placeholder="e.g. sardines, eggs, kefir" className="w-full p-3 rounded-xl border-2 text-sm outline-none resize-none" style={{ borderColor: '#E8E6E3', color: '#1C1C1A', minHeight: '90px' }} />
+          <p className="text-xs mt-2" style={{ color: '#A8A29E' }}>Comma separated. We keep swaps simple and protocol-compliant.</p>
+        </label>
+      </div>
+      <button onClick={next} className="w-full py-4 rounded-2xl font-semibold text-lg mt-4 cursor-pointer text-white" style={{ backgroundColor: '#4A7C59' }}>
+        Save Preferences →
+      </button>
+    </div>,
+
+    // Screen 6: Supplements
     <div key="supps" className="flex flex-col h-full px-4 py-6">
       <div className="mb-4">
         <h2 className="text-2xl font-bold mb-1" style={{ color: '#1C1C1A' }}>Which supplements do you have?</h2>
@@ -239,7 +365,7 @@ export default function OnboardingPage() {
       </button>
     </div>,
     
-    // Screen 5: Baseline
+    // Screen 7: Baseline
     <div key="baseline" className="flex flex-col h-full px-4 py-6">
       <div className="mb-4">
         <h2 className="text-2xl font-bold mb-1" style={{ color: '#1C1C1A' }}>How are you feeling right now?</h2>
@@ -283,7 +409,7 @@ export default function OnboardingPage() {
       </button>
     </div>,
     
-    // Screen 6: Ready
+    // Screen 8: Ready
     <div key="ready" className="flex flex-col h-full px-4 py-6 text-center">
       <div className="flex-1 flex flex-col items-center justify-center">
         <motion.div
@@ -302,7 +428,7 @@ export default function OnboardingPage() {
           </span>
         </p>
         <p className="text-sm" style={{ color: '#A8A29E' }}>
-          {selectedSupps.length} supplements configured · {selectedGoals.length || 0} goals set
+          {selectedSupps.length} supplements · {selectedGoals.length || 0} goals · {dietaryFlags.length + foodDislikes.length} food preferences
         </p>
       </div>
       <button

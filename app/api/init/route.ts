@@ -14,6 +14,13 @@ const COLLECTIONS = [
       { name: 'notifications_enabled', type: 'bool' },
       { name: 'onboarding_complete', type: 'bool' },
       { name: 'configured_supplements', type: 'json' },
+      { name: 'age', type: 'number' },
+      { name: 'sex', type: 'text' },
+      { name: 'weight_kg', type: 'number' },
+      { name: 'height_cm', type: 'number' },
+      { name: 'activity_level', type: 'text' },
+      { name: 'dietary_flags', type: 'json' },
+      { name: 'food_dislikes', type: 'json' },
     ],
   },
   {

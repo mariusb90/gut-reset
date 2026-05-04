@@ -7,12 +7,12 @@ import { Card } from '@/components/ui/Card';
 import { supplements } from '@/data/supplements';
 import { useAppStore, getCurrentDayNumber } from '@/store/appStore';
 
-type Section = 'supplements' | 'exercise' | 'shopping' | 'expect' | 'foods';
+type Section = 'profile' | 'supplements' | 'exercise' | 'shopping' | 'expect' | 'foods';
 
 export default function GuidePage() {
-  const { configuredSupplements, startDate, setConfiguredSupplements } = useAppStore();
+  const { configuredSupplements, startDate, personalDetails, foodPreferences, setConfiguredSupplements, setPersonalDetails, setFoodPreferences } = useAppStore();
   const currentDay = getCurrentDayNumber(startDate);
-  const [section, setSection] = useState<Section>('supplements');
+  const [section, setSection] = useState<Section>('profile');
   const [expandedSupp, setExpandedSupp] = useState<string | null>(null);
   const [expandedExpect, setExpandedExpect] = useState<string | null>('days1-3');
   const [toast, setToast] = useState<string | null>(null);
@@ -35,6 +35,7 @@ export default function GuidePage() {
   };
   
   const navItems: { key: Section; label: string; emoji: string }[] = [
+    { key: 'profile', label: 'Profile', emoji: '👤' },
     { key: 'supplements', label: 'Supplements', emoji: '💊' },
     { key: 'exercise', label: 'Exercise', emoji: '🏃' },
     { key: 'shopping', label: 'Shopping', emoji: '🛒' },
@@ -80,6 +81,74 @@ export default function GuidePage() {
       </div>
       
       <div className="flex-1 overflow-y-auto pb-nav px-4 py-4">
+        
+
+        {/* Profile section */}
+        {section === 'profile' && (
+          <div>
+            <Card className="mb-4">
+              <p className="font-semibold mb-1" style={{ color: '#1C1C1A' }}>Personalisation</p>
+              <p className="text-xs mb-3" style={{ color: '#6B7280' }}>Update your profile any time. Portions and meal swaps react immediately.</p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <label>
+                  <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Age</span>
+                  <input inputMode="numeric" value={personalDetails.age ?? ''} onChange={(e) => setPersonalDetails({ age: e.target.value ? Number(e.target.value.replace(/\D/g, '')) : null })} className="w-full p-3 rounded-xl border-2 text-sm outline-none" style={{ borderColor: '#E8E6E3', color: '#1C1C1A' }} />
+                </label>
+                <label>
+                  <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Sex</span>
+                  <select value={personalDetails.sex} onChange={(e) => setPersonalDetails({ sex: e.target.value as typeof personalDetails.sex })} className="w-full p-3 rounded-xl border-2 text-sm outline-none bg-white" style={{ borderColor: '#E8E6E3', color: '#1C1C1A' }}>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label>
+                  <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Weight (kg)</span>
+                  <input inputMode="decimal" value={personalDetails.weightKg ?? ''} onChange={(e) => setPersonalDetails({ weightKg: e.target.value ? Number(e.target.value.replace(/[^\d.]/g, '')) : null })} className="w-full p-3 rounded-xl border-2 text-sm outline-none" style={{ borderColor: '#E8E6E3', color: '#1C1C1A' }} />
+                </label>
+                <label>
+                  <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Height (cm)</span>
+                  <input inputMode="decimal" value={personalDetails.heightCm ?? ''} onChange={(e) => setPersonalDetails({ heightCm: e.target.value ? Number(e.target.value.replace(/[^\d.]/g, '')) : null })} className="w-full p-3 rounded-xl border-2 text-sm outline-none" style={{ borderColor: '#E8E6E3', color: '#1C1C1A' }} />
+                </label>
+              </div>
+              <label>
+                <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Activity</span>
+                <select value={personalDetails.activityLevel} onChange={(e) => setPersonalDetails({ activityLevel: e.target.value as typeof personalDetails.activityLevel })} className="w-full p-3 rounded-xl border-2 text-sm outline-none bg-white" style={{ borderColor: '#E8E6E3', color: '#1C1C1A' }}>
+                  <option value="sedentary">Mostly seated</option>
+                  <option value="light">Light movement 1–3×/week</option>
+                  <option value="moderate">Training 3–5×/week</option>
+                  <option value="active">Hard training most days</option>
+                  <option value="athlete">Athlete / physical job</option>
+                </select>
+              </label>
+            </Card>
+
+            <Card>
+              <p className="font-semibold mb-1" style={{ color: '#1C1C1A' }}>Food preferences</p>
+              <p className="text-xs mb-3" style={{ color: '#6B7280' }}>Dietary flags and dislikes power the smart meal alternatives.</p>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {[
+                  ['dairy-free', '🥥 Dairy-free'], ['gluten-free', '🌾 Gluten-free'], ['nut-free', '🌰 Nut-free'], ['egg-free', '🥚 Egg-free'], ['pescatarian', '🐟 Pescatarian'], ['vegetarian', '🥦 Vegetarian'], ['vegan', '🌱 Vegan'],
+                ].map(([id, label]) => {
+                  const active = foodPreferences.dietaryFlags.includes(id as never);
+                  return (
+                    <button key={id} onClick={() => setFoodPreferences({ dietaryFlags: active ? foodPreferences.dietaryFlags.filter(flag => flag !== id) : [...foodPreferences.dietaryFlags, id as never] })} className="p-2 rounded-xl border-2 text-xs font-semibold text-left cursor-pointer" style={{ borderColor: active ? '#4A7C59' : '#E8E6E3', backgroundColor: active ? '#E0EEE6' : 'white', color: '#1C1C1A' }}>
+                      {label}{active ? ' ✓' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              <label>
+                <span className="block text-xs font-semibold mb-1" style={{ color: '#44403C' }}>Dislikes / intolerances</span>
+                <textarea value={foodPreferences.foodDislikes.join(', ')} onChange={(e) => setFoodPreferences({ foodDislikes: e.target.value.split(',').map(item => item.trim()).filter(Boolean) })} className="w-full p-3 rounded-xl border-2 text-sm outline-none resize-none" style={{ borderColor: '#E8E6E3', color: '#1C1C1A', minHeight: '90px' }} placeholder="sardines, eggs, kefir" />
+              </label>
+              <button onClick={() => { fetch('/api/profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: 'local-user', age: personalDetails.age, sex: personalDetails.sex, weight_kg: personalDetails.weightKg, height_cm: personalDetails.heightCm, activity_level: personalDetails.activityLevel, dietary_flags: foodPreferences.dietaryFlags, food_dislikes: foodPreferences.foodDislikes }) }).catch(() => {}); showToast('✓ Profile saved'); }} className="w-full mt-3 py-3 rounded-xl text-sm font-semibold cursor-pointer text-white" style={{ backgroundColor: '#4A7C59' }}>
+                Save to PocketBase
+              </button>
+            </Card>
+          </div>
+        )}
         
         {/* Supplements section */}
         {section === 'supplements' && (

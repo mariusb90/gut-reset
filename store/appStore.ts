@@ -2,6 +2,20 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { ActivityLevel, DietaryFlag, Sex } from '@/lib/types';
+
+export interface PersonalDetails {
+  age: number | null;
+  sex: Sex;
+  weightKg: number | null;
+  heightCm: number | null;
+  activityLevel: ActivityLevel;
+}
+
+export interface FoodPreferences {
+  dietaryFlags: DietaryFlag[];
+  foodDislikes: string[];
+}
 
 export interface AppState {
   userId: string;
@@ -10,23 +24,38 @@ export interface AppState {
   configuredSupplements: string[];
   onboardingComplete: boolean;
   notificationsEnabled: boolean;
+  personalDetails: PersonalDetails;
+  foodPreferences: FoodPreferences;
   
   // Actions
   setStartDate: (date: string) => void;
   setGoals: (goals: string[]) => void;
   setConfiguredSupplements: (supplements: string[]) => void;
+  setPersonalDetails: (details: Partial<PersonalDetails>) => void;
+  setFoodPreferences: (preferences: Partial<FoodPreferences>) => void;
   completeOnboarding: () => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
-const INITIAL_STATE = {
+const INITIAL_STATE: Pick<AppState, 'userId' | 'startDate' | 'goals' | 'configuredSupplements' | 'onboardingComplete' | 'notificationsEnabled' | 'personalDetails' | 'foodPreferences'> = {
   userId: 'local-user',
   startDate: null,
   goals: [],
   configuredSupplements: ['probiotics', 'l-glutamine', 'omega-3', 'vitamin-d3-k2', 'magnesium-glycinate'],
   onboardingComplete: false,
   notificationsEnabled: false,
+  personalDetails: {
+    age: null,
+    sex: '',
+    weightKg: null,
+    heightCm: null,
+    activityLevel: 'light' as ActivityLevel,
+  },
+  foodPreferences: {
+    dietaryFlags: [] as DietaryFlag[],
+    foodDislikes: [] as string[],
+  },
 };
 
 export const useAppStore = create<AppState>()(
@@ -37,6 +66,8 @@ export const useAppStore = create<AppState>()(
       setStartDate: (date) => set({ startDate: date }),
       setGoals: (goals) => set({ goals }),
       setConfiguredSupplements: (supplements) => set({ configuredSupplements: supplements }),
+      setPersonalDetails: (details) => set((state) => ({ personalDetails: { ...state.personalDetails, ...details } })),
+      setFoodPreferences: (preferences) => set((state) => ({ foodPreferences: { ...state.foodPreferences, ...preferences } })),
       completeOnboarding: () => set({ onboardingComplete: true }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       reset: () => set(INITIAL_STATE),

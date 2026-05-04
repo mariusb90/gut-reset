@@ -44,6 +44,23 @@ export interface MealLog {
   eaten: boolean;
 }
 
+export type Sex = 'male' | 'female' | 'other' | '';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'athlete' | '';
+export type DietaryFlag = 'dairy-free' | 'gluten-free' | 'nut-free' | 'egg-free' | 'pescatarian' | 'vegan' | 'vegetarian';
+
+export interface PersonalProfile {
+  age: number | null;
+  sex: Sex;
+  weight_kg: number | null;
+  height_cm: number | null;
+  activity_level: ActivityLevel;
+}
+
+export interface FoodPreferences {
+  dietary_flags: DietaryFlag[];
+  food_dislikes: string[];
+}
+
 export interface UserProfile {
   id?: string;
   user: string;
@@ -52,6 +69,13 @@ export interface UserProfile {
   notifications_enabled: boolean;
   onboarding_complete: boolean;
   configured_supplements: string[];
+  age?: number | null;
+  sex?: Sex;
+  weight_kg?: number | null;
+  height_cm?: number | null;
+  activity_level?: ActivityLevel;
+  dietary_flags?: DietaryFlag[];
+  food_dislikes?: string[];
 }
 
 export interface Baseline {

@@ -9,7 +9,7 @@ import { MetricSelector, EmojiMetricSelector, BloatingSelector, WaterTracker } f
 import { useAppStore, getCurrentDayNumber, getPhase } from '@/store/appStore';
 import { useLogStore } from '@/store/logStore';
 import { supplements } from '@/data/supplements';
-import { mealPlan } from '@/data/mealPlan';
+import { getMealPersonalisation, mealPlan } from '@/data/mealPlan';
 import { getLocalLog, setLocalLog, getLocalSupplementLogs, setLocalSupplementLogs, getLocalMealLogs, setLocalMealLogs, getAllLocalLogs } from '@/lib/storage';
 
 // Bristol Stool Scale
@@ -101,7 +101,7 @@ function getDay7GoalTip(goals: string[]): string {
 }
 
 export default function TodayPage() {
-  const { startDate, configuredSupplements, goals, setConfiguredSupplements } = useAppStore();
+  const { startDate, configuredSupplements, goals, personalDetails, foodPreferences, setConfiguredSupplements } = useAppStore();
   const dayNumber = getCurrentDayNumber(startDate);
   const phase = getPhase(dayNumber);
   const today = new Date().toISOString().split('T')[0];
@@ -424,6 +424,15 @@ export default function TodayPage() {
                   {(['breakfast', 'snack1', 'lunch', 'snack2', 'dinner'] as const).map((slot) => {
                     const meal = dayMeal[slot];
                     const slotLabels: Record<string, string> = { breakfast: 'Breakfast', snack1: 'Morning Snack', lunch: 'Lunch', snack2: 'Afternoon Snack', dinner: 'Dinner' };
+                    const personalisation = getMealPersonalisation(meal, slot, {
+                      age: personalDetails.age,
+                      sex: personalDetails.sex,
+                      weightKg: personalDetails.weightKg,
+                      heightCm: personalDetails.heightCm,
+                      activityLevel: personalDetails.activityLevel,
+                      dietaryFlags: foodPreferences.dietaryFlags,
+                      foodDislikes: foodPreferences.foodDislikes,
+                    });
                     return (
                       <button
                         key={slot}
@@ -446,10 +455,31 @@ export default function TodayPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium" style={{ color: '#A8A29E' }}>{slotLabels[slot]}</p>
                           <p className="text-sm font-medium truncate" style={{ color: '#1C1C1A' }}>{meal.name}</p>
+                          {(personalisation.alternatives.length > 0 || personalisation.portion) && (
+                            <p className="text-xs mt-0.5 truncate" style={{ color: personalisation.alternatives.length > 0 ? '#D97706' : '#4A7C59' }}>
+                              {personalisation.alternatives.length > 0 ? `Swap available · ${personalisation.alternatives[0].reason}` : personalisation.portion?.label}
+                            </p>
+                          )}
                         </div>
                       </button>
                     );
                   })}
+                  {(() => {
+                    const flagged = (['breakfast', 'snack1', 'lunch', 'snack2', 'dinner'] as const)
+                      .map(slot => getMealPersonalisation(dayMeal[slot], slot, { age: personalDetails.age, sex: personalDetails.sex, weightKg: personalDetails.weightKg, heightCm: personalDetails.heightCm, activityLevel: personalDetails.activityLevel, dietaryFlags: foodPreferences.dietaryFlags, foodDislikes: foodPreferences.foodDislikes }))
+                      .filter(item => item.alternatives.length > 0);
+                    if (!flagged.length && !personalDetails.weightKg) return null;
+                    return (
+                      <div className="mt-3 pt-3 border-t" style={{ borderColor: '#F5F4F2' }}>
+                        {personalDetails.weightKg && (
+                          <p className="text-xs mb-1" style={{ color: '#4A7C59' }}>Personal portions are active in the Meals tab.</p>
+                        )}
+                        {flagged.length > 0 && (
+                          <p className="text-xs" style={{ color: '#D97706' }}>{flagged.length} meal slot{flagged.length > 1 ? 's' : ''} have protocol-compliant swaps today.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </Card>
               )}
               

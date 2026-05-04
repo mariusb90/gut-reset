@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { Card, PhaseBadge } from '@/components/ui/Card';
 import { useAppStore, getCurrentDayNumber } from '@/store/appStore';
-import { mealPlan, DayMealPlan } from '@/data/mealPlan';
+import { getMealPersonalisation, mealPlan } from '@/data/mealPlan';
 import { getLocalMealLogs, setLocalMealLogs } from '@/lib/storage';
 
 type MealSlotKey = 'breakfast' | 'snack1' | 'lunch' | 'snack2' | 'dinner';
@@ -19,7 +19,7 @@ const MEAL_SLOTS: { key: MealSlotKey; label: string; emoji: string }[] = [
 ];
 
 export default function MealsPage() {
-  const { startDate } = useAppStore();
+  const { startDate, personalDetails, foodPreferences } = useAppStore();
   const currentDay = getCurrentDayNumber(startDate);
   const [selectedDay, setSelectedDay] = useState(currentDay);
   const [week, setWeek] = useState<1 | 2>(currentDay <= 7 ? 1 : 2);
@@ -139,6 +139,15 @@ export default function MealsPage() {
               const meal = selectedMeal[key];
               const eaten = mealsEaten[selectedMeal.day_number]?.[key] || false;
               const isExpanded = expandedSlot === key;
+              const personalisation = getMealPersonalisation(meal, key, {
+                age: personalDetails.age,
+                sex: personalDetails.sex,
+                weightKg: personalDetails.weightKg,
+                heightCm: personalDetails.heightCm,
+                activityLevel: personalDetails.activityLevel,
+                dietaryFlags: foodPreferences.dietaryFlags,
+                foodDislikes: foodPreferences.foodDislikes,
+              });
               
               return (
                 <Card key={key} className="mb-3">
@@ -162,6 +171,11 @@ export default function MealsPage() {
                       <p className="text-sm font-semibold truncate" style={{ color: '#1C1C1A', textDecoration: eaten ? 'line-through' : 'none', opacity: eaten ? 0.6 : 1 }}>
                         {meal.name}
                       </p>
+                      {(personalisation.alternatives.length > 0 || personalisation.portion) && (
+                        <p className="text-xs mt-0.5 truncate" style={{ color: personalisation.alternatives.length > 0 ? '#D97706' : '#4A7C59' }}>
+                          {personalisation.alternatives.length > 0 ? `${personalisation.alternatives.length} smart swap${personalisation.alternatives.length > 1 ? 's' : ''}` : personalisation.portion?.label}
+                        </p>
+                      )}
                     </div>
                     <span className="text-sm" style={{ color: '#A8A29E' }}>{isExpanded ? '▲' : '▼'}</span>
                   </button>
@@ -177,6 +191,30 @@ export default function MealsPage() {
                       >
                         <div className="pt-3 mt-3 border-t" style={{ borderColor: '#F5F4F2' }}>
                           <p className="text-sm mb-2" style={{ color: '#44403C' }}>{meal.description}</p>
+                          {personalisation.portion && (
+                            <div className="rounded-xl p-3 mb-2" style={{ backgroundColor: '#F0FAF4', border: '1px solid #C1DCC9' }}>
+                              <p className="text-xs font-bold mb-1" style={{ color: '#2C4A35' }}>Personal portion: {personalisation.portion.label}</p>
+                              <ul className="flex flex-col gap-0.5">
+                                {personalisation.portion.details.map(detail => (
+                                  <li key={detail} className="text-xs" style={{ color: '#3A6146' }}>• {detail}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {personalisation.alternatives.length > 0 && (
+                            <div className="rounded-xl p-3 mb-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
+                              <p className="text-xs font-bold mb-2" style={{ color: '#92400E' }}>Smart alternatives</p>
+                              <div className="flex flex-col gap-2">
+                                {personalisation.alternatives.map((alt, index) => (
+                                  <div key={`${alt.reason}-${index}`}>
+                                    <p className="text-xs font-semibold" style={{ color: '#78350F' }}>{alt.reason}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: '#92400E', lineHeight: '1.45' }}>{alt.swap}</p>
+                                    <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>{alt.note}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {meal.prep_notes && (
                             <div className="bg-[#E0EEE6] rounded-xl p-3">
                               <p className="text-xs font-semibold mb-1" style={{ color: '#2C4A35' }}>Prep note:</p>
