@@ -1,0 +1,5 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="102" fill="#4A7C59"/>
+  <circle cx="256" cy="256" r="140" fill="#3A6146" opacity="0.5"/>
+  <text x="256" y="300" font-size="160" text-anchor="middle" font-family="system-ui,Arial" fill="white" font-weight="bold">GR</text>
+</svg>
