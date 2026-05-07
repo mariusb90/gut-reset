@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -101,6 +102,7 @@ function getDay7GoalTip(goals: string[]): string {
 }
 
 export default function TodayPage() {
+  const router = useRouter();
   const { startDate, configuredSupplements, goals, personalDetails, foodPreferences, setConfiguredSupplements } = useAppStore();
   const dayNumber = getCurrentDayNumber(startDate);
   const phase = getPhase(dayNumber);
@@ -231,8 +233,13 @@ export default function TodayPage() {
     setEveningCheckedIn(true);
     saveLog({ evening_checked_in: true });
     setView('dashboard');
-    setShowCompletion(true);
     setStreak(s => s + 1);
+    // Day 14: route to the full completion report
+    if (dayNumber >= 14) {
+      router.push('/completion');
+    } else {
+      setShowCompletion(true);
+    }
   };
   
   const phaseInfo = {
