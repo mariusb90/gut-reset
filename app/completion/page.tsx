@@ -25,6 +25,8 @@ interface BaselineData {
   bowel_pattern?: string;
 }
 
+const SHARE_FEEDBACK_DURATION_MS = 3000;
+
 function MetricDelta({ label, emoji, baseline, final, invert = false }: {
   label: string;
   emoji: string;
@@ -67,16 +69,25 @@ function MiniLineChart({ data }: { data: (number | null)[] }) {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    let frame: number | null = null;
 
     const updateWidth = () => {
       const nextWidth = Math.floor(container.clientWidth);
       if (nextWidth > 0) setWidth(nextWidth);
     };
+    const scheduleWidthUpdate = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      frame = requestAnimationFrame(updateWidth);
+    };
 
     updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    const observer = new ResizeObserver(scheduleWidthUpdate);
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
   }, []);
 
   useEffect(() => {
@@ -147,6 +158,7 @@ export default function CompletionPage() {
   const [logs, setLogs] = useState<LogData[]>([]);
   const [baseline, setBaseline] = useState<BaselineData | null>(null);
   const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied'>('idle');
+  const shareResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const allLogs = getAllLocalLogs();
@@ -155,16 +167,28 @@ export default function CompletionPage() {
     setBaseline(bl);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (shareResetTimeoutRef.current !== null) {
+        clearTimeout(shareResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Program stats
   const completedDays = logs.filter(l => l.evening_checked_in).length;
   const totalDays = 14;
 
   const suppAdherence = (() => {
-    const days = logs.filter(l => l.evening_checked_in && l.date);
+    const days = logs.filter(l => l.evening_checked_in && typeof l.date === 'string' && l.date.length > 0);
     if (!days.length || !configuredSupplements.length) return null;
+    const supplementLogCache: Record<string, Record<string, boolean> | null> = {};
     const totalSlots = days.length * configuredSupplements.length;
     const taken = days.reduce((acc, dayLog) => {
-      const supplementLog = getLocalSupplementLogs(dayLog.date);
+      if (!(dayLog.date in supplementLogCache)) {
+        supplementLogCache[dayLog.date] = getLocalSupplementLogs(dayLog.date);
+      }
+      const supplementLog = supplementLogCache[dayLog.date];
       return acc + configuredSupplements.filter(k => supplementLog?.[k]).length;
     }, 0);
     return Math.round((taken / totalSlots) * 100);
@@ -200,7 +224,12 @@ export default function CompletionPage() {
   const shareText = `I just completed the 14-Day Gut Reset! 🌿\n\n${avgGutScore ? `Average Gut Score: ${avgGutScore}/100\n` : ''}${completedDays} of 14 days logged${suppAdherence ? `\nSupplement adherence: ${suppAdherence}%` : ''}\n\nFeel significantly better. Recommend.`;
 
   const handleShare = async () => {
-    const resetFeedback = () => setTimeout(() => setShareState('idle'), 3000);
+    const resetFeedback = () => {
+      if (shareResetTimeoutRef.current !== null) {
+        clearTimeout(shareResetTimeoutRef.current);
+      }
+      shareResetTimeoutRef.current = setTimeout(() => setShareState('idle'), SHARE_FEEDBACK_DURATION_MS);
+    };
 
     if (navigator.share) {
       try {
