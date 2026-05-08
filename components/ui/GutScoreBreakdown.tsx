@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface ScoreComponent {
@@ -29,6 +30,28 @@ export function GutScoreBreakdown({
   totalScore,
   todaySummary,
 }: GutScoreBreakdownProps) {
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -41,6 +64,7 @@ export function GutScoreBreakdown({
             exit={{ opacity: 0 }}
             onClick={onClose}
             className="fixed inset-0 z-40"
+            aria-hidden="true"
             style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
           />
 
@@ -55,6 +79,9 @@ export function GutScoreBreakdown({
             style={{ backgroundColor: '#FAFAF8' }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
             onDragEnd={(_, info) => {
               if (info.offset.y > 80) onClose();
             }}
@@ -64,8 +91,9 @@ export function GutScoreBreakdown({
 
             {/* Title */}
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-lg font-bold" style={{ color: '#1C1C1A' }}>Score Breakdown</h2>
+              <h2 id={titleId} className="text-lg font-bold" style={{ color: '#1C1C1A' }}>Score Breakdown</h2>
               <button
+                ref={closeButtonRef}
                 onClick={onClose}
                 className="text-2xl leading-none cursor-pointer"
                 style={{ color: '#A8A29E' }}

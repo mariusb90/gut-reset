@@ -12,6 +12,7 @@ import { useLogStore } from '@/store/logStore';
 import { supplements } from '@/data/supplements';
 import { getMealPersonalisation, mealPlan } from '@/data/mealPlan';
 import { getLocalLog, setLocalLog, getLocalSupplementLogs, setLocalSupplementLogs, getLocalMealLogs, setLocalMealLogs, getAllLocalLogs } from '@/lib/storage';
+import { computeGutScore, computeGutScoreBreakdown } from '@/lib/gutScore';
 
 // Bristol Stool Scale
 const BRISTOL = [
@@ -23,26 +24,6 @@ const BRISTOL = [
   { type: 6, label: 'Mushy', emoji: '🟠' },
   { type: 7, label: 'Watery', emoji: '🔴' },
 ];
-
-function computeGutScore(log: {
-  supplementsTaken: Record<string, boolean>;
-  totalSupplements: number;
-  mealsEaten: Record<string, boolean>;
-  waterGlasses: number;
-  energy: number;
-  bloating: number;
-}): number {
-  const taken = Object.values(log.supplementsTaken).filter(Boolean).length;
-  const eaten = Object.values(log.mealsEaten).filter(Boolean).length;
-  
-  const suppScore = log.totalSupplements > 0 ? (taken / log.totalSupplements) * 30 : 0;
-  const mealScore = (eaten / 5) * 25;
-  const waterScore = (Math.min(log.waterGlasses, 8) / 8) * 15;
-  const energyScore = ((log.energy || 0) / 5) * 15;
-  const bloatingScore = log.bloating > 0 ? ((5 - log.bloating) / 5) * 15 : 0;
-  
-  return Math.round(Math.max(0, Math.min(100, suppScore + mealScore + waterScore + energyScore + bloatingScore)));
-}
 
 function computeStreak(logs: Array<{ date: string; data: unknown }>): number {
   if (!logs.length) return 0;
@@ -136,39 +117,45 @@ export default function TodayPage() {
   
   // Build breakdown data from current log state
   function buildBreakdownComponents(): ScoreComponent[] {
-    const suppTotal = configuredSupplList.length;
-    const suppTaken = Object.values(supplementsTaken).filter(Boolean).length;
-    const mealsEaten_ = Object.values(mealsEaten).filter(Boolean).length;
+    const breakdown = computeGutScoreBreakdown({
+      supplementsTaken,
+      totalSupplements: configuredSupplList.length,
+      mealsEaten,
+      waterGlasses,
+      energy,
+      bloating,
+    });
+
     return [
       {
         label: 'Supplements',
         emoji: '💊',
-        earned: suppTotal > 0 ? (suppTaken / suppTotal) * 30 : 0,
+        earned: breakdown.supplements,
         max: 30,
       },
       {
         label: 'Meals',
         emoji: '🥗',
-        earned: (mealsEaten_ / 5) * 25,
+        earned: breakdown.meals,
         max: 25,
       },
       {
         label: 'Water',
         emoji: '💧',
-        earned: (Math.min(waterGlasses, 8) / 8) * 15,
+        earned: breakdown.water,
         max: 15,
       },
       {
         label: 'Energy',
         emoji: '⚡',
-        earned: ((energy || 0) / 5) * 15,
+        earned: breakdown.energy,
         max: 15,
         pending: !morningCheckedIn,
       },
       {
         label: 'Bloating',
         emoji: '🫧',
-        earned: bloating > 0 ? ((5 - bloating) / 5) * 15 : 0,
+        earned: breakdown.bloating,
         max: 15,
         pending: !eveningCheckedIn,
       },
@@ -190,7 +177,7 @@ export default function TodayPage() {
       return `${missing} supplement${missing > 1 ? 's' : ''} not yet taken — up to +${potentialGain} pts still available today.`;
     }
     if (!eveningCheckedIn) {
-      return 'Evening log pending — bloating score estimated at 0 until logged.';
+      return 'Evening log pending — bloating contribution will update after check-in.';
     }
     return gutScore >= 80
       ? 'Excellent day — all major components scored well.'
@@ -391,7 +378,7 @@ export default function TodayPage() {
                 <p className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Today's Gut Score</p>
                 <button
                   onClick={() => setShowBreakdown(true)}
-                  className="cursor-pointer focus:outline-none"
+                  className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A7C59] focus-visible:ring-offset-2"
                   aria-label="Show gut score breakdown"
                 >
                   <ProgressRing value={gutScore} size={100} strokeWidth={10} label="/ 100" />
