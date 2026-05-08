@@ -177,7 +177,7 @@ export default function TodayPage() {
       return `${missing} supplement${missing > 1 ? 's' : ''} not yet taken — up to +${potentialGain} pts still available today.`;
     }
     if (!eveningCheckedIn) {
-      return 'Evening log pending — bloating contribution will update after check-in.';
+      return 'Evening log pending — bloating score will update after check-in.';
     }
     return gutScore >= 80
       ? 'Excellent day — all major components scored well.'
