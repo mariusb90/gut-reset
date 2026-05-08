@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { Card } from '@/components/ui/Card';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -290,6 +291,20 @@ export default function ProgressPage() {
           </Card>
         )}
         
+        {/* Completion report link when program done */}
+        {currentDay >= 14 && (
+          <Link
+            href="/completion"
+            className="flex items-center justify-between w-full bg-white rounded-2xl p-4 shadow-card mb-4 cursor-pointer"
+          >
+            <div>
+              <p className="font-semibold text-base" style={{ color: '#1C1C1A' }}>🏆 Completion Report</p>
+              <p className="text-sm" style={{ color: '#6B7280' }}>Before vs. after, full stats</p>
+            </div>
+            <span className="text-xl">→</span>
+          </Link>
+        )}
+
         {logs.length < 2 && (
           <div className="text-center py-8">
             <p className="text-4xl mb-3">📊</p>
