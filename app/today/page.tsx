@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomNav } from '@/components/ui/BottomNav';
+import { GutScoreBreakdown, ScoreComponent } from '@/components/ui/GutScoreBreakdown';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { PhaseBadge, StreakBadge, Card } from '@/components/ui/Card';
 import { MetricSelector, EmojiMetricSelector, BloatingSelector, WaterTracker } from '@/components/ui/MetricSelector';
@@ -110,6 +111,7 @@ export default function TodayPage() {
 
   const [view, setView] = useState<ViewMode>('dashboard');
   const [showCompletion, setShowCompletion] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [streak, setStreak] = useState(0);
   const [suppToast, setSuppToast] = useState<string | null>(null);
   
@@ -132,6 +134,69 @@ export default function TodayPage() {
   const [supplementsTaken, setSupplementsTaken] = useState<Record<string, boolean>>({});
   const [mealsEaten, setMealsEaten] = useState<Record<string, boolean>>({});
   
+  // Build breakdown data from current log state
+  function buildBreakdownComponents(): ScoreComponent[] {
+    const suppTotal = configuredSupplList.length;
+    const suppTaken = Object.values(supplementsTaken).filter(Boolean).length;
+    const mealsEaten_ = Object.values(mealsEaten).filter(Boolean).length;
+    return [
+      {
+        label: 'Supplements',
+        emoji: '💊',
+        earned: suppTotal > 0 ? (suppTaken / suppTotal) * 30 : 0,
+        max: 30,
+      },
+      {
+        label: 'Meals',
+        emoji: '🥗',
+        earned: (mealsEaten_ / 5) * 25,
+        max: 25,
+      },
+      {
+        label: 'Water',
+        emoji: '💧',
+        earned: (Math.min(waterGlasses, 8) / 8) * 15,
+        max: 15,
+      },
+      {
+        label: 'Energy',
+        emoji: '⚡',
+        earned: ((energy || 0) / 5) * 15,
+        max: 15,
+        pending: !morningCheckedIn,
+      },
+      {
+        label: 'Bloating',
+        emoji: '🫧',
+        earned: bloating > 0 ? ((5 - bloating) / 5) * 15 : 0,
+        max: 15,
+        pending: !eveningCheckedIn,
+      },
+    ];
+  }
+
+  function buildTodaySummary(): string {
+    const suppTotal = configuredSupplList.length;
+    const suppTaken = Object.values(supplementsTaken).filter(Boolean).length;
+    if (!morningCheckedIn && !eveningCheckedIn) {
+      return 'Complete your morning and evening check-ins to see the full picture.';
+    }
+    if (suppTotal > 0 && suppTaken === suppTotal) {
+      return `All ${suppTotal} supplements taken — +${Math.round((suppTotal / suppTotal) * 30)} pts from compliance.`;
+    }
+    if (suppTotal > 0 && suppTaken < suppTotal) {
+      const missing = suppTotal - suppTaken;
+      const potentialGain = Math.round(((suppTotal - suppTaken) / suppTotal) * 30);
+      return `${missing} supplement${missing > 1 ? 's' : ''} not yet taken — up to +${potentialGain} pts still available today.`;
+    }
+    if (!eveningCheckedIn) {
+      return 'Evening log pending — bloating score estimated at 0 until logged.';
+    }
+    return gutScore >= 80
+      ? 'Excellent day — all major components scored well.'
+      : 'Keep tracking to unlock the remaining points.';
+  }
+
   const gutScore = computeGutScore({
     supplementsTaken,
     totalSupplements: configuredSupplList.length,
@@ -324,7 +389,14 @@ export default function TodayPage() {
             <div className="px-4 py-4">
               <Card elevated className="text-center">
                 <p className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Today's Gut Score</p>
-                <ProgressRing value={gutScore} size={100} strokeWidth={10} label="/ 100" />
+                <button
+                  onClick={() => setShowBreakdown(true)}
+                  className="cursor-pointer focus:outline-none"
+                  aria-label="Show gut score breakdown"
+                >
+                  <ProgressRing value={gutScore} size={100} strokeWidth={10} label="/ 100" />
+                </button>
+                <p className="text-xs mt-1" style={{ color: '#A8A29E' }}>Tap to see breakdown</p>
                 <p className="text-xs mt-3" style={{ color: '#A8A29E' }}>
                   {gutScore < 40 ? 'Keep going — early days are the hardest' : gutScore < 70 ? 'Good progress — keep logging' : 'Excellent day 🌿'}
                 </p>
@@ -718,6 +790,13 @@ export default function TodayPage() {
         )}
       </AnimatePresence>
       
+      <GutScoreBreakdown
+        isOpen={showBreakdown}
+        onClose={() => setShowBreakdown(false)}
+        components={buildBreakdownComponents()}
+        totalScore={gutScore}
+        todaySummary={buildTodaySummary()}
+      />
       <BottomNav />
     </div>
   );
