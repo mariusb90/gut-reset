@@ -33,15 +33,15 @@ export function GutScoreBreakdown({
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    let didFocus = false;
-    const focusFrame = window.requestAnimationFrame(() => {
-      didFocus = true;
+    focusFrameRef.current = window.requestAnimationFrame(() => {
       closeButtonRef.current?.focus();
+      focusFrameRef.current = null;
     });
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -50,7 +50,10 @@ export function GutScoreBreakdown({
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      if (!didFocus) window.cancelAnimationFrame(focusFrame);
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current);
+        focusFrameRef.current = null;
+      }
       window.removeEventListener('keydown', onKeyDown);
       previousFocusRef.current?.focus();
     };
