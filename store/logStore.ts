@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { computeGutScore } from '@/lib/gutScore';
 
 export interface TodayLog {
   dayNumber: number;
@@ -48,20 +49,6 @@ export interface LogStore {
   computeGutScore: () => number;
   setPbAvailable: (available: boolean) => void;
   setLoading: (loading: boolean) => void;
-}
-
-function computeScore(log: TodayLog, totalSupplements: number): number {
-  const supplementsTakenCount = Object.values(log.supplementsTaken).filter(Boolean).length;
-  const mealsEatenCount = Object.values(log.mealsEaten).filter(Boolean).length;
-  
-  const suppScore = totalSupplements > 0 ? (supplementsTakenCount / totalSupplements) * 30 : 0;
-  const mealScore = (mealsEatenCount / 5) * 25;
-  const waterScore = (Math.min(log.waterGlasses, 8) / 8) * 15;
-  const energyScore = ((log.energy || 0) / 5) * 15;
-  const bloatingScore = log.bloating > 0 ? ((5 - log.bloating) / 5) * 15 : 0;
-  
-  const total = suppScore + mealScore + waterScore + energyScore + bloatingScore;
-  return Math.round(Math.max(0, Math.min(100, total)));
 }
 
 export const useLogStore = create<LogStore>((set, get) => ({
@@ -114,7 +101,14 @@ export const useLogStore = create<LogStore>((set, get) => ({
     const current = get().todayLog;
     if (!current) return 0;
     const total = Object.keys(current.supplementsTaken).length;
-    return computeScore(current, total);
+    return computeGutScore({
+      supplementsTaken: current.supplementsTaken,
+      totalSupplements: total,
+      mealsEaten: current.mealsEaten,
+      waterGlasses: current.waterGlasses,
+      energy: current.energy,
+      bloating: current.bloating,
+    });
   },
   
   setPbAvailable: (available) => set({ pbAvailable: available }),

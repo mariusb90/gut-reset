@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomNav } from '@/components/ui/BottomNav';
+import { GutScoreBreakdown, ScoreComponent } from '@/components/ui/GutScoreBreakdown';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { PhaseBadge, StreakBadge, Card } from '@/components/ui/Card';
 import { MetricSelector, EmojiMetricSelector, BloatingSelector, WaterTracker } from '@/components/ui/MetricSelector';
@@ -12,6 +13,7 @@ import { useLogStore } from '@/store/logStore';
 import { supplements } from '@/data/supplements';
 import { getMealPersonalisation, mealPlan } from '@/data/mealPlan';
 import { getLocalLog, setLocalLog, getLocalSupplementLogs, setLocalSupplementLogs, getLocalMealLogs, setLocalMealLogs, getAllLocalLogs } from '@/lib/storage';
+import { computeGutScore, computeGutScoreBreakdown } from '@/lib/gutScore';
 
 // Bristol Stool Scale
 const BRISTOL = [
@@ -23,26 +25,6 @@ const BRISTOL = [
   { type: 6, label: 'Mushy', emoji: '🟠' },
   { type: 7, label: 'Watery', emoji: '🔴' },
 ];
-
-function computeGutScore(log: {
-  supplementsTaken: Record<string, boolean>;
-  totalSupplements: number;
-  mealsEaten: Record<string, boolean>;
-  waterGlasses: number;
-  energy: number;
-  bloating: number;
-}): number {
-  const taken = Object.values(log.supplementsTaken).filter(Boolean).length;
-  const eaten = Object.values(log.mealsEaten).filter(Boolean).length;
-  
-  const suppScore = log.totalSupplements > 0 ? (taken / log.totalSupplements) * 30 : 0;
-  const mealScore = (eaten / 5) * 25;
-  const waterScore = (Math.min(log.waterGlasses, 8) / 8) * 15;
-  const energyScore = ((log.energy || 0) / 5) * 15;
-  const bloatingScore = log.bloating > 0 ? ((5 - log.bloating) / 5) * 15 : 0;
-  
-  return Math.round(Math.max(0, Math.min(100, suppScore + mealScore + waterScore + energyScore + bloatingScore)));
-}
 
 function computeStreak(logs: Array<{ date: string; data: unknown }>): number {
   if (!logs.length) return 0;
@@ -112,6 +94,7 @@ export default function TodayPage() {
 
   const [view, setView] = useState<ViewMode>('dashboard');
   const [showCompletion, setShowCompletion] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [streak, setStreak] = useState(0);
   const [suppToast, setSuppToast] = useState<string | null>(null);
   
@@ -134,6 +117,75 @@ export default function TodayPage() {
   const [supplementsTaken, setSupplementsTaken] = useState<Record<string, boolean>>({});
   const [mealsEaten, setMealsEaten] = useState<Record<string, boolean>>({});
   
+  // Build breakdown data from current log state
+  function buildBreakdownComponents(): ScoreComponent[] {
+    const breakdown = computeGutScoreBreakdown({
+      supplementsTaken,
+      totalSupplements: configuredSupplList.length,
+      mealsEaten,
+      waterGlasses,
+      energy,
+      bloating,
+    });
+
+    return [
+      {
+        label: 'Supplements',
+        emoji: '💊',
+        earned: breakdown.supplements,
+        max: 30,
+      },
+      {
+        label: 'Meals',
+        emoji: '🥗',
+        earned: breakdown.meals,
+        max: 25,
+      },
+      {
+        label: 'Water',
+        emoji: '💧',
+        earned: breakdown.water,
+        max: 15,
+      },
+      {
+        label: 'Energy',
+        emoji: '⚡',
+        earned: breakdown.energy,
+        max: 15,
+        pending: !morningCheckedIn,
+      },
+      {
+        label: 'Bloating',
+        emoji: '🫧',
+        earned: breakdown.bloating,
+        max: 15,
+        pending: !eveningCheckedIn,
+      },
+    ];
+  }
+
+  function buildTodaySummary(): string {
+    const suppTotal = configuredSupplList.length;
+    const suppTaken = Object.values(supplementsTaken).filter(Boolean).length;
+    if (!morningCheckedIn && !eveningCheckedIn) {
+      return 'Complete your morning and evening check-ins to see the full picture.';
+    }
+    if (suppTotal > 0 && suppTaken === suppTotal) {
+      return `All ${suppTotal} supplements taken — +${Math.round((suppTotal / suppTotal) * 30)} pts from compliance.`;
+    }
+    if (suppTotal > 0 && suppTaken < suppTotal) {
+      const missing = suppTotal - suppTaken;
+      const potentialGain = Math.round(((suppTotal - suppTaken) / suppTotal) * 30);
+      return `${missing} supplement${missing > 1 ? 's' : ''} not yet taken — up to +${potentialGain} pts still available today.`;
+    }
+    if (!eveningCheckedIn) {
+      return 'Evening log pending — bloating score is provisional until check-in.';
+    }
+    return gutScore >= 80
+      ? 'Excellent day — all major components scored well.'
+      : 'Keep tracking to unlock the remaining points.';
+  }
+
   const gutScore = computeGutScore({
     supplementsTaken,
     totalSupplements: configuredSupplList.length,
@@ -331,7 +383,14 @@ export default function TodayPage() {
             <div className="px-4 py-4">
               <Card elevated className="text-center">
                 <p className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Today's Gut Score</p>
-                <ProgressRing value={gutScore} size={100} strokeWidth={10} label="/ 100" />
+                <button
+                  onClick={() => setShowBreakdown(true)}
+                  className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A7C59] focus-visible:ring-offset-2"
+                  aria-label="Show gut score breakdown"
+                >
+                  <ProgressRing value={gutScore} size={100} strokeWidth={10} label="/ 100" />
+                </button>
+                <p className="text-xs mt-1" style={{ color: '#A8A29E' }}>Tap to see breakdown</p>
                 <p className="text-xs mt-3" style={{ color: '#A8A29E' }}>
                   {gutScore < 40 ? 'Keep going — early days are the hardest' : gutScore < 70 ? 'Good progress — keep logging' : 'Excellent day 🌿'}
                 </p>
@@ -725,6 +784,13 @@ export default function TodayPage() {
         )}
       </AnimatePresence>
       
+      <GutScoreBreakdown
+        isOpen={showBreakdown}
+        onClose={() => setShowBreakdown(false)}
+        components={buildBreakdownComponents()}
+        totalScore={gutScore}
+        todaySummary={buildTodaySummary()}
+      />
       <BottomNav />
     </div>
   );
