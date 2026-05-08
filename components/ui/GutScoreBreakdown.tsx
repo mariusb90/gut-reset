@@ -38,7 +38,11 @@ export function GutScoreBreakdown({
     if (!isOpen) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    let didFocus = false;
+    const focusFrame = window.requestAnimationFrame(() => {
+      didFocus = true;
+      closeButtonRef.current?.focus();
+    });
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
@@ -46,7 +50,7 @@ export function GutScoreBreakdown({
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      window.cancelAnimationFrame(focusFrame);
+      if (!didFocus) window.cancelAnimationFrame(focusFrame);
       window.removeEventListener('keydown', onKeyDown);
       previousFocusRef.current?.focus();
     };
