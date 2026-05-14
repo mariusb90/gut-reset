@@ -8,6 +8,7 @@ export interface MealSlot {
 export interface MealAlternative {
   reason: string;
   swap: string;
+  shortSwap: string;
   note: string;
 }
 
@@ -41,40 +42,47 @@ export interface UserNutritionProfile {
   foodDislikes?: string[];
 }
 
-const DIETARY_PATTERNS: Record<DietaryFlag, { label: string; terms: string[]; swap: string }> = {
+const DIETARY_PATTERNS: Record<DietaryFlag, { label: string; terms: string[]; swap: string; shortSwap: string }> = {
   'dairy-free': {
     label: 'Dairy-free',
     terms: ['yogurt', 'kefir', 'goat cheese', 'feta', 'cheese', 'tzatziki', 'ghee', 'chèvre', 'milk'],
+    shortSwap: 'Sub dairy: use coconut yogurt or tahini',
     swap: 'Use coconut yogurt, water kefir, olive oil, tahini, avocado, or extra fermented vegetables instead of dairy.',
   },
   'gluten-free': {
     label: 'Gluten-free',
     terms: ['farro', 'pita', 'flatbread', 'wheat', 'barley', 'rye'],
+    shortSwap: 'Sub gluten: use quinoa or buckwheat',
     swap: 'Use quinoa, buckwheat, brown rice, gluten-free oats, cucumber scoops, or roasted sweet potato.',
   },
   'nut-free': {
     label: 'Nut-free',
     terms: ['almond', 'walnut', 'nuts', 'nut butter', 'brazil nuts'],
+    shortSwap: 'Sub nuts: use pumpkin seeds or tahini',
     swap: 'Use pumpkin seeds, hemp seeds, chia, tahini, avocado, olives, or extra berries for fats and polyphenols.',
   },
   'egg-free': {
     label: 'Egg-free',
     terms: ['egg', 'eggs', 'omelette', 'scramble', 'shakshuka'],
+    shortSwap: 'Sub eggs: use tempeh or chickpea scramble',
     swap: 'Use sardines, smoked salmon, tempeh, chickpea scramble, or avocado with sauerkraut.',
   },
   pescatarian: {
     label: 'Pescatarian',
     terms: ['chicken', 'lamb', 'beef', 'bone broth', 'collagen'],
+    shortSwap: 'Sub meat: use salmon, sardines, or miso broth',
     swap: 'Use salmon, sardines, mackerel, tuna, eggs if tolerated, legumes, miso broth, or marine collagen if suitable.',
   },
   vegetarian: {
     label: 'Vegetarian',
     terms: ['chicken', 'lamb', 'beef', 'salmon', 'sardines', 'mackerel', 'tuna', 'anchovies', 'octopus', 'squid', 'prawns', 'cod', 'swordfish', 'sea bream', 'bone broth', 'collagen'],
+    shortSwap: 'Sub meat/fish: use lentils, tempeh, or eggs',
     swap: 'Use eggs/dairy if tolerated, lentils, chickpeas, white beans, tempeh, tofu, quinoa, tahini, miso broth, and fermented vegetables.',
   },
   vegan: {
     label: 'Vegan',
     terms: ['chicken', 'lamb', 'beef', 'salmon', 'sardines', 'mackerel', 'tuna', 'anchovies', 'octopus', 'squid', 'prawns', 'cod', 'swordfish', 'sea bream', 'bone broth', 'collagen', 'egg', 'eggs', 'yogurt', 'kefir', 'cheese', 'feta', 'goat cheese', 'honey', 'ghee', 'milk'],
+    shortSwap: 'Sub animal products: use tempeh or coconut yogurt',
     swap: 'Use lentils, chickpeas, white beans, tempeh, tofu, quinoa, tahini, avocado, coconut yogurt, water kefir, miso broth, and fermented vegetables.',
   },
 };
@@ -115,7 +123,8 @@ export function calculatePortionProfile(profile: UserNutritionProfile): PortionP
 }
 
 export function getMealPersonalisation(meal: MealSlot, slot: string, profile: UserNutritionProfile): MealPersonalisation {
-  const text = `${meal.name} ${meal.description} ${meal.prep_notes}`.toLowerCase();
+  const fullText = `${meal.name} ${meal.description} ${meal.prep_notes}`.toLowerCase();
+  const mealName = meal.name.toLowerCase();
   const flags = profile.dietaryFlags || [];
   const dislikes = (profile.foodDislikes || []).map(d => d.trim()).filter(Boolean);
   const alternatives: MealAlternative[] = [];
@@ -123,18 +132,26 @@ export function getMealPersonalisation(meal: MealSlot, slot: string, profile: Us
   for (const flag of flags) {
     const spec = DIETARY_PATTERNS[flag];
     if (!spec) continue;
-    const hit = spec.terms.find(term => text.includes(term));
+    const hit = spec.terms.find(term => fullText.includes(term));
     if (hit) {
-      alternatives.push({ reason: spec.label, swap: spec.swap, note: `Flagged because this meal mentions “${hit}”.` });
+      alternatives.push({
+        reason: spec.label,
+        shortSwap: spec.shortSwap,
+        swap: spec.swap,
+        note: `Your flag: ${spec.label}. This meal mentions "${hit}". Suggested swap below.`,
+      });
     }
   }
 
+  // Dislike check: meal name only (best-effort, approximate)
   for (const dislike of dislikes) {
-    if (text.includes(dislike.toLowerCase())) {
+    if (mealName.includes(dislike.toLowerCase())) {
+      const swapText = getDislikeSwap(dislike);
       alternatives.push({
-        reason: `Disliked food: ${dislike}`,
-        swap: getDislikeSwap(dislike),
-        note: 'Protocol-compliant swap: keep the meal structure, replace only the problem ingredient.',
+        reason: `Disliked ingredient: ${dislike}`,
+        shortSwap: `Contains "${dislike}" — see swap`,
+        swap: swapText,
+        note: 'Approximate match on meal name. Keep the meal structure; replace only the problem ingredient.',
       });
     }
   }
@@ -202,11 +219,11 @@ export const mealPlan: DayMealPlan[] = [
     day_number: 1,
     phase: 'elimination',
     milestone_day: true,
-    milestone_content: "Welcome to Day 1. Your gut reset has begun. The next 3 days are the hardest — you may feel headaches, fatigue, and temporary bloating as pathobionts die off and your body clears inflammatory triggers. This is not failure; it's confirmation the protocol is working. Stay hydrated, protect your sleep, and trust the process.",
+    milestone_content: "Welcome to Day 1. Your gut reset has begun. The next 3 days are the hardest - you may feel headaches, fatigue, and temporary bloating as pathobionts die off and your body clears inflammatory triggers. This is not failure; it's confirmation the protocol is working. Stay hydrated, protect your sleep, and trust the process.",
     breakfast: {
       name: "Overnight Oats with Green Banana & Yogurt",
       description: "Warm lemon water first. Overnight oats with 1 green banana (sliced), blueberries, 2 tbsp ground flaxseed, 1 tsp cinnamon, 150g Greek yogurt.",
-      prep_notes: "Use gluten-free oats; soak overnight in water or unsweetened almond milk. Green banana provides resistant starch — crucial prebiotics."
+      prep_notes: "Use gluten-free oats; soak overnight in water or unsweetened almond milk. Green banana provides resistant starch - crucial prebiotics."
     },
     snack1: {
       name: "Walnuts & Pear",
@@ -215,13 +232,13 @@ export const mealPlan: DayMealPlan[] = [
     },
     lunch: {
       name: "Greek Salad with Sardines",
-      description: "Large Greek salad — romaine, cucumber, tomato, red onion, Kalamata olives, 100g canned sardines (in water/brine), EVOO + lemon dressing.",
+      description: "Large Greek salad - romaine, cucumber, tomato, red onion, Kalamata olives, 100g canned sardines (in water/brine), EVOO + lemon dressing.",
       prep_notes: "No croutons. Dress just before eating. Sardines provide EPA/DHA directly."
     },
     snack2: {
       name: "Sauerkraut Bites & Boiled Egg",
       description: "2 tbsp raw sauerkraut on cucumber slices, 1 hard-boiled egg",
-      prep_notes: "Must be raw/unpasteurised sauerkraut from the refrigerator section — pasteurised has no live cultures."
+      prep_notes: "Must be raw/unpasteurised sauerkraut from the refrigerator section - pasteurised has no live cultures."
     },
     dinner: {
       name: "Baked Salmon with Asparagus & Turmeric Broth",
@@ -246,13 +263,13 @@ export const mealPlan: DayMealPlan[] = [
     },
     lunch: {
       name: "Red Lentil Soup",
-      description: "Lentil soup — red lentils, cumin, coriander, garlic (3 cloves), onion, diced tomato, EVOO, lemon.",
-      prep_notes: "Sauté onion + garlic first; simmer 20 min. Make a large batch — use tomorrow."
+      description: "Lentil soup - red lentils, cumin, coriander, garlic (3 cloves), onion, diced tomato, EVOO, lemon.",
+      prep_notes: "Sauté onion + garlic first; simmer 20 min. Make a large batch - use tomorrow."
     },
     snack2: {
       name: "Honey Yogurt",
       description: "150g plain yogurt + 1 tbsp honey + 1 tsp bee pollen (optional)",
-      prep_notes: "Use raw honey — it has antimicrobial properties and feeds beneficial bacteria."
+      prep_notes: "Use raw honey - it has antimicrobial properties and feeds beneficial bacteria."
     },
     dinner: {
       name: "Roast Chicken Thighs with Braised Greens",
@@ -265,11 +282,11 @@ export const mealPlan: DayMealPlan[] = [
     day_number: 3,
     phase: 'elimination',
     milestone_day: true,
-    milestone_content: "Day 3 — you're through the hardest part. Many people hit their lowest point today. The headaches, fatigue, and mood dip are the elimination phase doing exactly what it should: clearing the inflammatory load that was making you feel suboptimal. From tomorrow, the stabilisation phase begins. Energy typically improves noticeably around Day 5.",
+    milestone_content: "Day 3 - you're through the hardest part. Many people hit their lowest point today. The headaches, fatigue, and mood dip are the elimination phase doing exactly what it should: clearing the inflammatory load that was making you feel suboptimal. From tomorrow, the stabilisation phase begins. Energy typically improves noticeably around Day 5.",
     breakfast: {
       name: "Scrambled Eggs with Kimchi",
       description: "Scrambled eggs (2-3 eggs) cooked in ghee with sautéed spinach, cherry tomatoes, fresh herbs. Side: 2 tbsp kimchi.",
-      prep_notes: "Kimchi on the side, not cooked — preserve live cultures. This is your first probiotic-rich breakfast."
+      prep_notes: "Kimchi on the side, not cooked - preserve live cultures. This is your first probiotic-rich breakfast."
     },
     snack1: {
       name: "Celery & Guacamole",
@@ -279,7 +296,7 @@ export const mealPlan: DayMealPlan[] = [
     lunch: {
       name: "Lentil Soup & Beetroot Walnut Salad",
       description: "Leftover lentil soup + large mixed salad with rocket, roasted beetroot, walnuts, goat cheese (small amount), pomegranate seeds, EVOO dressing.",
-      prep_notes: "Pomegranate seeds provide punicalagins converted to urolithins by gut bacteria — feeds Akkermansia."
+      prep_notes: "Pomegranate seeds provide punicalagins converted to urolithins by gut bacteria - feeds Akkermansia."
     },
     snack2: {
       name: "Dark Chocolate & Herbal Tea",
@@ -300,7 +317,7 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Chia Pudding with Berries & Kefir",
       description: "Chia pudding made with 200ml coconut milk, 3 tbsp chia seeds (set overnight). Top with berries, 2 tbsp kefir, 1 tbsp hemp seeds.",
-      prep_notes: "Chia provides prebiotic fibre + omega-3 ALA. Must set overnight — at least 6 hours."
+      prep_notes: "Chia provides prebiotic fibre + omega-3 ALA. Must set overnight - at least 6 hours."
     },
     snack1: {
       name: "Kombucha & Blueberries",
@@ -315,7 +332,7 @@ export const mealPlan: DayMealPlan[] = [
     snack2: {
       name: "Miso Broth & Rice Crackers",
       description: "Miso broth (1 tsp unpasteurised miso in warm water) + rice crackers (gluten-free)",
-      prep_notes: "Do not boil the miso — warm water only. Heat destroys the probiotic cultures."
+      prep_notes: "Do not boil the miso - warm water only. Heat destroys the probiotic cultures."
     },
     dinner: {
       name: "Baked Mackerel with Root Vegetables",
@@ -331,17 +348,17 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Turmeric Yogurt Parfait",
       description: "200g Greek yogurt, 2 tbsp granola (gluten-free, low sugar), berries, 1 tbsp raw honey, 1 tsp turmeric.",
-      prep_notes: "Turmeric with the yogurt — the fat in the yogurt helps absorb curcumin. Add a pinch of black pepper."
+      prep_notes: "Turmeric with the yogurt - the fat in the yogurt helps absorb curcumin. Add a pinch of black pepper."
     },
     snack1: {
       name: "Bell Peppers & Hummus",
-      description: "Sliced bell peppers + hummus (100g — chickpeas, tahini, lemon, garlic)",
+      description: "Sliced bell peppers + hummus (100g - chickpeas, tahini, lemon, garlic)",
       prep_notes: "Bell peppers provide vitamin C which aids iron absorption from the legumes."
     },
     lunch: {
       name: "Mediterranean Tuna & White Bean Salad",
       description: "Canned tuna (in EVOO), white beans, red onion, olives, capers, tomatoes, EVOO + lemon. On bed of rocket.",
-      prep_notes: "Capers are high in quercetin and rutin — potent anti-inflammatory flavonoids."
+      prep_notes: "Capers are high in quercetin and rutin - potent anti-inflammatory flavonoids."
     },
     snack2: {
       name: "Kiwi & Almonds",
@@ -351,7 +368,7 @@ export const mealPlan: DayMealPlan[] = [
     dinner: {
       name: "Herb Roast Chicken with Ratatouille",
       description: "Lemon-herb roast chicken breast with ratatouille (eggplant, zucchini, tomato, peppers, garlic, EVOO, thyme). + Miso broth.",
-      prep_notes: "Ratatouille is best made ahead and reheated — flavours deepen."
+      prep_notes: "Ratatouille is best made ahead and reheated - flavours deepen."
     }
   },
   {
@@ -362,17 +379,17 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Leek & Goat Cheese Omelette",
       description: "Two-egg omelette with sautéed leeks, goat cheese, fresh herbs (chives, dill). Side: 2 tbsp sauerkraut. Black coffee (reintroduce from Day 4).",
-      prep_notes: "Leeks are one of the best inulin sources. Coffee (from Day 4) provides chlorogenic acid — a prebiotic polyphenol."
+      prep_notes: "Leeks are one of the best inulin sources. Coffee (from Day 4) provides chlorogenic acid - a prebiotic polyphenol."
     },
     snack1: {
       name: "Green Smoothie",
       description: "Spinach, cucumber, green apple, lemon juice, 1cm ginger, water.",
-      prep_notes: "Drink immediately — oxidation reduces nutrient content. The ginger provides gingerols, COX-2 inhibitors."
+      prep_notes: "Drink immediately - oxidation reduces nutrient content. The ginger provides gingerols, COX-2 inhibitors."
     },
     lunch: {
       name: "Lamb & Chickpea Stew",
       description: "Slow-cooked lamb and chickpea stew with cumin, coriander, cinnamon, tomatoes, garlic, onion.",
-      prep_notes: "Make extra — this flavour improves overnight. Cinnamon has demonstrated anti-microbial and blood sugar effects."
+      prep_notes: "Make extra - this flavour improves overnight. Cinnamon has demonstrated anti-microbial and blood sugar effects."
     },
     snack2: {
       name: "Kefir & Flaxseed",
@@ -390,7 +407,7 @@ export const mealPlan: DayMealPlan[] = [
     day_number: 7,
     phase: 'stabilisation',
     milestone_day: true,
-    milestone_content: "Halfway through Week 1 — and probably the first day you've felt genuinely good. The stabilisation phase is working: beneficial bacteria are colonising, tight junctions are beginning to repair, and your energy should be trending up. Week 2 brings the restoration phase, where microbiome diversity measurably improves and mood, sleep, and skin often follow.",
+    milestone_content: "Halfway through Week 1 - and probably the first day you've felt genuinely good. The stabilisation phase is working: beneficial bacteria are colonising, tight junctions are beginning to repair, and your energy should be trending up. Week 2 brings the restoration phase, where microbiome diversity measurably improves and mood, sleep, and skin often follow.",
     breakfast: {
       name: "Smoothie Bowl with Superseeds",
       description: "Blended frozen berries + kefir + banana. Top with granola, bee pollen, flaxseed, pomegranate seeds.",
@@ -399,12 +416,12 @@ export const mealPlan: DayMealPlan[] = [
     snack1: {
       name: "Collagen Coffee",
       description: "Black coffee + 1 scoop hydrolysed collagen powder",
-      prep_notes: "Collagen provides glycine and proline — structural proteins of the gut epithelium."
+      prep_notes: "Collagen provides glycine and proline - structural proteins of the gut epithelium."
     },
     lunch: {
       name: "Mediterranean Mezze Spread",
-      description: "Full Mediterranean spread — hummus, tzatziki (yogurt, cucumber, garlic, dill), olives, canned sardines/anchovies, roasted vegetables, gluten-free pita or cucumber for dipping.",
-      prep_notes: "This is a relaxed, grazing meal — ideal for end of Week 1. Anchovies provide the most concentrated omega-3 of any fish."
+      description: "Full Mediterranean spread - hummus, tzatziki (yogurt, cucumber, garlic, dill), olives, canned sardines/anchovies, roasted vegetables, gluten-free pita or cucumber for dipping.",
+      prep_notes: "This is a relaxed, grazing meal - ideal for end of Week 1. Anchovies provide the most concentrated omega-3 of any fish."
     },
     snack2: {
       name: "Dark Chocolate & Herbal Tea",
@@ -414,7 +431,7 @@ export const mealPlan: DayMealPlan[] = [
     dinner: {
       name: "Roast Chicken Thighs with Jerusalem Artichoke",
       description: "Roast chicken thighs with Jerusalem artichoke and leeks (tray bake, EVOO, garlic, rosemary).",
-      prep_notes: "Jerusalem artichoke: start with 50g maximum. It contains the highest inulin of any vegetable (~19g/100g) — incredibly powerful but introduces slowly."
+      prep_notes: "Jerusalem artichoke: start with 50g maximum. It contains the highest inulin of any vegetable (~19g/100g) - incredibly powerful but introduces slowly."
     }
   },
   {
@@ -425,7 +442,7 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Buckwheat Porridge with Yogurt",
       description: "Overnight buckwheat porridge: soak buckwheat groats overnight, cook 10 min. Top with yogurt, berries, raw honey, cinnamon.",
-      prep_notes: "Buckwheat is gluten-free and contains rutin — an anti-inflammatory flavonoid. Excellent prebiotic fibre."
+      prep_notes: "Buckwheat is gluten-free and contains rutin - an anti-inflammatory flavonoid. Excellent prebiotic fibre."
     },
     snack1: {
       name: "Fennel & Olive Tapenade",
@@ -456,7 +473,7 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Smoked Salmon Scramble",
       description: "3-egg scramble with smoked salmon, capers, red onion, dill. Side: sliced avocado.",
-      prep_notes: "Capers are extremely high in quercetin — one of the most potent anti-inflammatory flavonoids."
+      prep_notes: "Capers are extremely high in quercetin - one of the most potent anti-inflammatory flavonoids."
     },
     snack1: {
       name: "Cinnamon Apple & Almond Butter",
@@ -466,7 +483,7 @@ export const mealPlan: DayMealPlan[] = [
     lunch: {
       name: "Coconut Lentil & Spinach Soup",
       description: "Large lentil and spinach soup with turmeric, ginger, garlic, coconut milk.",
-      prep_notes: "The coconut milk adds caprylic acid — a natural antifungal targeting Candida without disrupting beneficial bacteria."
+      prep_notes: "The coconut milk adds caprylic acid - a natural antifungal targeting Candida without disrupting beneficial bacteria."
     },
     snack2: {
       name: "Kefir & Bee Pollen",
@@ -484,7 +501,7 @@ export const mealPlan: DayMealPlan[] = [
     day_number: 10,
     phase: 'restoration',
     milestone_day: true,
-    milestone_content: "Day 10 — you're in the restoration phase. Your microbiome diversity is measurably improving right now. SCFA production is recovering, which means your colonocytes are getting proper fuel. Mood stabilises around this point — the serotonin precursor availability via the gut is normalising. Many people notice clearer skin and better sleep from here.",
+    milestone_content: "Day 10 - you're in the restoration phase. Your microbiome diversity is measurably improving right now. SCFA production is recovering, which means your colonocytes are getting proper fuel. Mood stabilises around this point - the serotonin precursor availability via the gut is normalising. Many people notice clearer skin and better sleep from here.",
     breakfast: {
       name: "Mango Coconut Chia Pudding",
       description: "Chia pudding with mango, coconut, lime zest, kefir.",
@@ -529,7 +546,7 @@ export const mealPlan: DayMealPlan[] = [
     lunch: {
       name: "Chickpea & Roasted Pepper Stew",
       description: "Chickpea and roasted red pepper stew with spinach, cumin, smoked paprika. Served with gluten-free flatbread or alone.",
-      prep_notes: "Smoked paprika contains capsaicin in small amounts — anti-inflammatory and stimulates gut motility."
+      prep_notes: "Smoked paprika contains capsaicin in small amounts - anti-inflammatory and stimulates gut motility."
     },
     snack2: {
       name: "Fermented Vegetable Plate",
@@ -539,7 +556,7 @@ export const mealPlan: DayMealPlan[] = [
     dinner: {
       name: "Grilled Swordfish with Salsa Verde",
       description: "Grilled swordfish or tuna steak with salsa verde (parsley, capers, anchovies, garlic, EVOO, lemon). Side: zucchini noodles or roasted sweet potato.",
-      prep_notes: "Salsa verde is an anchovy-based sauce — umami richness plus omega-3 from the anchovies."
+      prep_notes: "Salsa verde is an anchovy-based sauce - umami richness plus omega-3 from the anchovies."
     }
   },
   {
@@ -555,7 +572,7 @@ export const mealPlan: DayMealPlan[] = [
     snack1: {
       name: "Tzatziki Crudités",
       description: "Cucumber and carrot sticks with tzatziki.",
-      prep_notes: "Tzatziki is a probiotic food (yogurt base) combined with garlic — one of the best prebiotic foods."
+      prep_notes: "Tzatziki is a probiotic food (yogurt base) combined with garlic - one of the best prebiotic foods."
     },
     lunch: {
       name: "Mediterranean Grain Bowl",
@@ -564,7 +581,7 @@ export const mealPlan: DayMealPlan[] = [
     },
     snack2: {
       name: "Spirulina Berry Kefir",
-      description: "Kefir smoothie with berries and spirulina (1 tsp — prebiotic + chlorophyll).",
+      description: "Kefir smoothie with berries and spirulina (1 tsp - prebiotic + chlorophyll).",
       prep_notes: "Spirulina is a prebiotic that selectively feeds Lactobacillus and has potent anti-inflammatory properties."
     },
     dinner: {
@@ -581,27 +598,27 @@ export const mealPlan: DayMealPlan[] = [
     breakfast: {
       name: "Full Mediterranean Breakfast",
       description: "2 eggs (any style), sliced tomatoes with EVOO and oregano, olives, goat cheese, 2 tbsp kimchi, black coffee.",
-      prep_notes: "Oregano contains thymol and carvacrol — potent antimicrobial compounds that inhibit pathobionts without harming beneficial species."
+      prep_notes: "Oregano contains thymol and carvacrol - potent antimicrobial compounds that inhibit pathobionts without harming beneficial species."
     },
     snack1: {
       name: "Celery & Apple Juice",
-      description: "Green apple + celery juice (pressed, raw — high in glutamine-supporting nutrients)",
-      prep_notes: "Raw celery juice provides apigenin and luteolin — anti-inflammatory flavonoids."
+      description: "Green apple + celery juice (pressed, raw - high in glutamine-supporting nutrients)",
+      prep_notes: "Raw celery juice provides apigenin and luteolin - anti-inflammatory flavonoids."
     },
     lunch: {
       name: "Prawn & Rocket Salad",
       description: "Octopus or prawn salad with rocket, capers, lemon, EVOO.",
-      prep_notes: "Rocket (arugula) contains sulforaphane precursors — a powerful Nrf2 pathway activator."
+      prep_notes: "Rocket (arugula) contains sulforaphane precursors - a powerful Nrf2 pathway activator."
     },
     snack2: {
       name: "Collagen Hot Chocolate",
       description: "Collagen hot chocolate: unsweetened cocoa, coconut milk, 1 scoop collagen powder, raw honey, cinnamon, pinch cayenne.",
-      prep_notes: "Cayenne contains capsaicin which stimulates the TRPV1 receptor — anti-inflammatory and gut motility enhancing."
+      prep_notes: "Cayenne contains capsaicin which stimulates the TRPV1 receptor - anti-inflammatory and gut motility enhancing."
     },
     dinner: {
       name: "Whole Roasted Chicken with Greek Green Beans",
       description: "Whole roasted chicken (or thighs) with preserved lemon and olives, braised with white wine. Side: Greek-style green beans (fasolia) with tomato, garlic, EVOO.",
-      prep_notes: "Save the chicken carcass — make bone broth overnight for your final day."
+      prep_notes: "Save the chicken carcass - make bone broth overnight for your final day."
     }
   },
   {
@@ -609,16 +626,16 @@ export const mealPlan: DayMealPlan[] = [
     day_number: 14,
     phase: 'restoration',
     milestone_day: true,
-    milestone_content: "Day 14 — you did it. Your gut microbiome has undergone measurable shifts: increased Bifidobacterium and Lactobacillus, reduced pathobionts, improved epithelial tight junction integrity, and declining systemic inflammation markers. The benefits compound over the next 4-6 weeks as the new microbial populations establish. The most powerful thing you can do now: maintain the Mediterranean dietary pattern and the daily fermented food habit. Your gut is a garden. You've done the hard work of preparing the soil.",
+    milestone_content: "Day 14 - you did it. Your gut microbiome has undergone measurable shifts: increased Bifidobacterium and Lactobacillus, reduced pathobionts, improved epithelial tight junction integrity, and declining systemic inflammation markers. The benefits compound over the next 4-6 weeks as the new microbial populations establish. The most powerful thing you can do now: maintain the Mediterranean dietary pattern and the daily fermented food habit. Your gut is a garden. You've done the hard work of preparing the soil.",
     breakfast: {
       name: "Shakshuka with Sauerkraut",
-      description: "Shakshuka — eggs poached in spiced tomato-pepper sauce (cumin, paprika, harissa, garlic, EVOO). Top with fresh herbs, crumbled feta, 2 tbsp sauerkraut on the side.",
+      description: "Shakshuka - eggs poached in spiced tomato-pepper sauce (cumin, paprika, harissa, garlic, EVOO). Top with fresh herbs, crumbled feta, 2 tbsp sauerkraut on the side.",
       prep_notes: "The ultimate gut-reset breakfast. Eggs provide complete protein; tomatoes provide lycopene (4x more bioavailable when cooked); harissa adds capsaicin."
     },
     snack1: {
       name: "Mixed Fruit Bowl",
       description: "Full bowl of mixed fruit: pomegranate, berries, mango, kiwi.",
-      prep_notes: "These feed different microbial niches — diversity of fruit = diversity of microbiome."
+      prep_notes: "These feed different microbial niches - diversity of fruit = diversity of microbiome."
     },
     lunch: {
       name: "Celebration Mezze",
@@ -631,9 +648,9 @@ export const mealPlan: DayMealPlan[] = [
       prep_notes: "Celebrate. You've just completed 14 days that have measurably improved your health."
     },
     dinner: {
-      name: "Whole Baked Sea Bream — Celebration Dinner",
+      name: "Whole Baked Sea Bream - Celebration Dinner",
       description: "Whole baked sea bream or salmon with roasted vegetables, EVOO, herbs, lemon. One small glass of quality red wine is acceptable on Day 14.",
-      prep_notes: "Red wine on Day 14 only — polyphenol-rich, the reset is complete. Resveratrol in red wine selectively feeds Bifidobacterium."
+      prep_notes: "Red wine on Day 14 only - polyphenol-rich, the reset is complete. Resveratrol in red wine selectively feeds Bifidobacterium."
     }
   }
 ];
