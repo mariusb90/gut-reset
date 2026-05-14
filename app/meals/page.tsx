@@ -171,10 +171,13 @@ export default function MealsPage() {
                       <p className="text-sm font-semibold truncate" style={{ color: '#1C1C1A', textDecoration: eaten ? 'line-through' : 'none', opacity: eaten ? 0.6 : 1 }}>
                         {meal.name}
                       </p>
-                      {(personalisation.alternatives.length > 0 || personalisation.portion) && (
-                        <p className="text-xs mt-0.5 truncate" style={{ color: personalisation.alternatives.length > 0 ? '#D97706' : '#4A7C59' }}>
-                          {personalisation.alternatives.length > 0 ? `${personalisation.alternatives.length} smart swap${personalisation.alternatives.length > 1 ? 's' : ''}` : personalisation.portion?.label}
-                        </p>
+                      {personalisation.alternatives.length > 0 ? (
+                        <div className="mt-0.5">
+                          <p className="text-xs font-semibold" style={{ color: '#D97706' }}>⚠ May not suit you</p>
+                          <p className="text-xs truncate" style={{ color: '#B45309' }}>{personalisation.alternatives[0].shortSwap}</p>
+                        </div>
+                      ) : personalisation.portion && (
+                        <p className="text-xs mt-0.5 truncate" style={{ color: '#4A7C59' }}>{personalisation.portion.label}</p>
                       )}
                     </div>
                     <span className="text-sm" style={{ color: '#A8A29E' }}>{isExpanded ? '▲' : '▼'}</span>
@@ -203,13 +206,12 @@ export default function MealsPage() {
                           )}
                           {personalisation.alternatives.length > 0 && (
                             <div className="rounded-xl p-3 mb-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
-                              <p className="text-xs font-bold mb-2" style={{ color: '#92400E' }}>Smart alternatives</p>
-                              <div className="flex flex-col gap-2">
+                              <p className="text-xs font-bold mb-2" style={{ color: '#92400E' }}>⚠️ May not suit you</p>
+                              <div className="flex flex-col gap-3">
                                 {personalisation.alternatives.map((alt, index) => (
                                   <div key={`${alt.reason}-${index}`}>
-                                    <p className="text-xs font-semibold" style={{ color: '#78350F' }}>{alt.reason}</p>
-                                    <p className="text-xs mt-0.5" style={{ color: '#92400E', lineHeight: '1.45' }}>{alt.swap}</p>
-                                    <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>{alt.note}</p>
+                                    <p className="text-xs font-semibold" style={{ color: '#78350F' }}>{alt.note}</p>
+                                    <p className="text-xs mt-1" style={{ color: '#92400E', lineHeight: '1.45' }}>{alt.swap}</p>
                                   </div>
                                 ))}
                               </div>
