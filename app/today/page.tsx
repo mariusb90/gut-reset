@@ -12,6 +12,7 @@ import { useAppStore, getCurrentDayNumber, getPhase } from '@/store/appStore';
 import { useLogStore } from '@/store/logStore';
 import { supplements } from '@/data/supplements';
 import { getMealPersonalisation, mealPlan } from '@/data/mealPlan';
+import { SYMPTOM_OPTIONS } from '@/data/symptoms';
 import { getLocalLog, setLocalLog, getLocalSupplementLogs, setLocalSupplementLogs, getLocalMealLogs, setLocalMealLogs, getAllLocalLogs } from '@/lib/storage';
 import { computeGutScore, computeGutScoreBreakdown } from '@/lib/gutScore';
 
@@ -108,6 +109,7 @@ export default function TodayPage() {
   const [bmType, setBmType] = useState(4);
   const [bmPain, setBmPain] = useState('none');
   const [notes, setNotes] = useState('');
+  const [symptoms, setSymptoms] = useState<string[]>([]);
   const [fermentedFood, setFermentedFood] = useState(false);
   const [boneBroth, setBoneBroth] = useState(false);
   const [eliminatedAvoided, setEliminatedAvoided] = useState(true);
@@ -225,6 +227,7 @@ export default function TodayPage() {
       if (stored.bm_type) setBmType(stored.bm_type as number);
       if (stored.bm_pain) setBmPain(stored.bm_pain as string);
       if (stored.notes) setNotes(stored.notes as string);
+      if (stored.symptoms) setSymptoms(stored.symptoms as string[]);
       if (stored.fermented_food !== undefined) setFermentedFood(stored.fermented_food as boolean);
       if (stored.bone_broth !== undefined) setBoneBroth(stored.bone_broth as boolean);
       if (stored.eliminated_avoided !== undefined) setEliminatedAvoided(stored.eliminated_avoided as boolean);
@@ -258,6 +261,7 @@ export default function TodayPage() {
       bm_type: bmType,
       bm_pain: bmPain,
       notes,
+      symptoms,
       fermented_food: fermentedFood,
       bone_broth: boneBroth,
       eliminated_avoided: eliminatedAvoided,
@@ -273,7 +277,7 @@ export default function TodayPage() {
     
     // Try PocketBase
     fetch('/api/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).catch(() => {});
-  }, [dayNumber, today, energy, mood, sleepQuality, waterGlasses, bloating, bmFrequency, bmType, bmPain, notes, fermentedFood, boneBroth, eliminatedAvoided, exerciseDone, gutScore, morningCheckedIn, eveningCheckedIn, supplementsTaken, mealsEaten]);
+  }, [dayNumber, today, energy, mood, sleepQuality, waterGlasses, bloating, bmFrequency, bmType, bmPain, notes, symptoms, fermentedFood, boneBroth, eliminatedAvoided, exerciseDone, gutScore, morningCheckedIn, eveningCheckedIn, supplementsTaken, mealsEaten]);
   
   const finishMorning = () => {
     setMorningCheckedIn(true);
@@ -761,6 +765,34 @@ export default function TodayPage() {
                 ))}
               </Card>
               
+              <Card>
+                <p className="font-semibold mb-2" style={{ color: '#1C1C1A' }}>🤒 Symptoms today</p>
+                <p className="text-xs mb-3" style={{ color: '#6B7280' }}>Select any that apply (optional)</p>
+                <div className="flex flex-wrap gap-2">
+                  {SYMPTOM_OPTIONS.map((s) => {
+                    const selected = symptoms.includes(s.key);
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => {
+                          setSymptoms((prev) =>
+                            selected ? prev.filter((k) => k !== s.key) : [...prev, s.key]
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-full text-sm font-medium border-2 cursor-pointer transition-all"
+                        style={{
+                          borderColor: selected ? '#EF4444' : '#E8E6E3',
+                          backgroundColor: selected ? '#FEE2E2' : 'white',
+                          color: selected ? '#991B1B' : '#6B7280',
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
               <Card>
                 <p className="font-semibold mb-3" style={{ color: '#1C1C1A' }}>📝 Notes</p>
                 <textarea
