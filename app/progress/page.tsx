@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { useAppStore, getCurrentDayNumber } from '@/store/appStore';
 import { getAllLocalLogs } from '@/lib/storage';
+import { getSymptomMeta } from '@/data/symptoms';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -31,6 +32,7 @@ interface LogData {
   sleep_quality?: number;
   evening_checked_in?: boolean;
   day_number?: number;
+  symptoms?: string[];
 }
 
 export default function ProgressPage() {
@@ -222,6 +224,63 @@ export default function ProgressPage() {
           )}
         </Card>
         
+        {/* Symptom Patterns */}
+        {(() => {
+          // Count symptom occurrences across all logs
+          const symptomCounts: Record<string, { week1: number; week2: number }> = {};
+          for (const log of logs) {
+            const syms = log.symptoms ?? [];
+            const isWeek1 = (log.day_number ?? 0) <= 7;
+            for (const key of syms) {
+              if (!symptomCounts[key]) symptomCounts[key] = { week1: 0, week2: 0 };
+              if (isWeek1) symptomCounts[key].week1++;
+              else symptomCounts[key].week2++;
+            }
+          }
+
+          const recurring = Object.entries(symptomCounts).filter(
+            ([, c]) => c.week1 + c.week2 >= 3
+          );
+          const resolved = Object.entries(symptomCounts).filter(
+            ([, c]) => c.week1 >= 2 && c.week2 === 0 && currentDay > 7
+          );
+
+          if (recurring.length === 0 && resolved.length === 0) return null;
+
+          return (
+            <Card className="mb-4">
+              <p className="font-semibold mb-3" style={{ color: '#1C1C1A' }}>🧬 Symptom Patterns</p>
+              <div className="flex flex-col gap-3">
+                {recurring.map(([key, counts]) => {
+                  const meta = getSymptomMeta(key);
+                  const total = counts.week1 + counts.week2;
+                  return (
+                    <div key={key} className="rounded-xl p-3" style={{ backgroundColor: '#FEF3F2' }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold" style={{ color: '#991B1B' }}>{meta.label}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#FEE2E2', color: '#991B1B' }}>{total}× logged</span>
+                      </div>
+                      <p className="text-xs" style={{ color: '#6B7280' }}>{meta.recurringNote}</p>
+                    </div>
+                  );
+                })}
+                {resolved.map(([key, counts]) => {
+                  const meta = getSymptomMeta(key);
+                  return (
+                    <div key={key} className="rounded-xl p-3" style={{ backgroundColor: '#F0FDF4' }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold" style={{ color: '#166534' }}>✓ {meta.label}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#DCFCE7', color: '#166534' }}>Resolved</span>
+                      </div>
+                      <p className="text-xs" style={{ color: '#6B7280' }}>{meta.resolvedNote}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })()}
+
         {/* Streak Calendar */}
         <Card className="mb-4">
           <p className="font-semibold mb-3" style={{ color: '#1C1C1A' }}>14-Day Calendar</p>
