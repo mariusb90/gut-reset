@@ -29,6 +29,9 @@ interface LogData {
   mood?: number;
   bloating?: number;
   sleep_quality?: number;
+  bm_type?: number;
+  bm_frequency?: number;
+  bm_pain?: string;
   evening_checked_in?: boolean;
   day_number?: number;
 }
@@ -144,6 +147,56 @@ export default function ProgressPage() {
       spanGaps: true,
     }],
   };
+
+  const bristolData = {
+    labels: days,
+    datasets: [
+      {
+        label: 'Bristol Type',
+        data: getMetricData('bm_type'),
+        borderColor: '#8B5CF6',
+        backgroundColor: (getMetricData('bm_type') as (number | null)[]).map((v) => {
+          if (v === null) return 'rgba(139,92,246,0.5)';
+          return v >= 3 && v <= 4 ? '#4A7C59' : v === 5 ? '#F59E0B' : '#EF4444';
+        }),
+        tension: 0.2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        spanGaps: true,
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const bmFrequencyData = {
+    labels: days,
+    datasets: [{
+      label: 'BM Frequency',
+      data: getMetricData('bm_frequency'),
+      borderColor: '#6366F1',
+      backgroundColor: 'rgba(99,102,241,0.1)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 4,
+      spanGaps: true,
+    }],
+  };
+
+  // Pain note: find days with non-'none' bm_pain
+  const painDays = Array.from({ length: 14 }, (_, i) => {
+    const dayLog = logs.find(l => l.day_number === i + 1);
+    return dayLog?.bm_pain && dayLog.bm_pain !== 'none' && dayLog.bm_pain !== '' ? i + 1 : null;
+  }).filter((d): d is number => d !== null);
+
+  const painEasedDay = painDays.length >= 2 ? (() => {
+    const last = Math.max(...painDays);
+    const latest = Array.from({ length: 14 }, (_, i) => {
+      const dayLog = logs.find(l => l.day_number === i + 1);
+      return dayLog?.bm_pain && dayLog.bm_pain !== 'none' && dayLog.bm_pain !== '' ? i + 1 : null;
+    }).filter(Boolean);
+    const allLogged = logs.filter(l => l.evening_checked_in && l.day_number && l.day_number > last);
+    return allLogged.length >= 2 ? last : null;
+  })() : null;
   
   return (
     <div className="min-h-dvh max-w-sm mx-auto flex flex-col" style={{ backgroundColor: '#FAFAF8' }}>
@@ -205,6 +258,76 @@ export default function ProgressPage() {
           </div>
         </Card>
         
+        {/* Bristol Stool & Gut Transit */}
+        <Card className="mb-4">
+          <p className="font-semibold mb-1" style={{ color: '#1C1C1A' }}>💩 Bristol Stool Type — Gut Transit</p>
+          <p className="text-xs mb-1" style={{ color: '#6B7280' }}>Types 3–4 are optimal (well-formed)</p>
+          <div className="flex gap-3 mb-3">
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E0EEE6', color: '#2C4A35' }}>● 3–4 Optimal</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>● 5 Soft</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FEE2E2', color: '#991B1B' }}>● 1–2, 6–7 Off-range</span>
+          </div>
+          <div style={{ height: '160px' }}>
+            <Line
+              data={bristolData}
+              options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  legend: { display: false },
+                  tooltip: {
+                    mode: 'index' as const,
+                    intersect: false,
+                    callbacks: {
+                      label: (ctx) => {
+                        const v = ctx.parsed.y;
+                        const labels: Record<number, string> = {
+                          1: 'Type 1 — Separate hard lumps',
+                          2: 'Type 2 — Lumpy sausage',
+                          3: 'Type 3 — Cracked sausage ✓',
+                          4: 'Type 4 — Smooth sausage ✓',
+                          5: 'Type 5 — Soft blobs',
+                          6: 'Type 6 — Fluffy, mushy',
+                          7: 'Type 7 — Liquid',
+                        };
+                        return labels[v as number] ?? `Type ${v}`;
+                      },
+                    },
+                  },
+                },
+                scales: {
+                  ...chartOptions.scales,
+                  y: { ...chartOptions.scales.y, min: 1, max: 7, ticks: { ...chartOptions.scales.y.ticks, stepSize: 1 } },
+                },
+              }}
+            />
+          </div>
+          {painDays.length > 0 && (
+            <p className="text-xs mt-2 px-2 py-1.5 rounded-lg" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+              ⚠️ Pain reported on Day{painDays.length > 1 ? 's' : ''} {painDays.join(', ')}
+              {painEasedDay ? ` — eased by Day ${painEasedDay + 1}` : ''}
+            </p>
+          )}
+        </Card>
+
+        {/* BM Frequency */}
+        <Card className="mb-4">
+          <p className="font-semibold mb-1" style={{ color: '#1C1C1A' }}>BM Frequency</p>
+          <p className="text-xs mb-3" style={{ color: '#6B7280' }}>Bowel movements per day — aim for 1–2</p>
+          <div style={{ height: '130px' }}>
+            <Line
+              data={bmFrequencyData}
+              options={{
+                ...chartOptions,
+                scales: {
+                  ...chartOptions.scales,
+                  y: { ...chartOptions.scales.y, min: 0, max: 5, ticks: { ...chartOptions.scales.y.ticks, stepSize: 1 } },
+                },
+              }}
+            />
+          </div>
+        </Card>
+
         {/* Bloating chart */}
         <Card className="mb-4">
           <div className="flex items-center gap-2 mb-1">
